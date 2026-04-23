@@ -43,9 +43,33 @@ if exist ".git\config.lock" (
 )
 
 REM Get user input
+echo NOTE: GitHub username is NOT your email!
+echo   - WRONG: aofwara66@gmail.com
+echo   - RIGHT: aofwara66  (just letters/digits/hyphens)
+echo   - Find yours at: https://github.com (click your avatar)
+echo.
 set /p USERNAME=Enter your GitHub username:
 if "%USERNAME%"=="" (
     echo [ERROR] Username is required.
+    pause
+    exit /b 1
+)
+echo %USERNAME% | findstr /C:"@" >nul
+if not errorlevel 1 (
+    echo.
+    echo [ERROR] Username contains "@" - that looks like an email.
+    echo GitHub username is just letters/digits/hyphens, no @ sign.
+    echo Example: aofwara66  (not aofwara66@gmail.com)
+    echo.
+    pause
+    exit /b 1
+)
+echo %USERNAME% | findstr /R "^[A-Za-z0-9][A-Za-z0-9-]*$" >nul
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Invalid GitHub username: "%USERNAME%"
+    echo Allowed: letters, digits, hyphens only.
+    echo.
     pause
     exit /b 1
 )
