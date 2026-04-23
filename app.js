@@ -167,7 +167,6 @@ function setView(v) {
 function renderMenuNav() {
   if(document.getElementById('menuNav'))document.getElementById('menuNav').innerHTML =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
-    '<button class="menu-item ' + (currentView==='recordsales'?'active':'') + '" data-view="recordsales"><span class="menu-item-icon">📝</span><span>บันทึกยอดขายพนักงาน</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>';
@@ -304,9 +303,139 @@ function renderEmpMiniCharts() {
 }
 
 function renderBranchView() {
-  renderSidebar(); renderMainTitle();
-  if(document.getElementById('empBranchLabel'))document.getElementById('empBranchLabel').textContent = getBranch(activeBranch).name;
-  renderEmployeeCards(); renderEmpMiniCharts(); renderKPIs();
+  renderSidebar();
+  renderMainTitle();
+  renderKPIs();
+  renderBranchInline();
+}
+
+function renderBranchInline() {
+  const br = getBranch(activeBranch);
+  const today = new Date().toISOString().slice(0,10);
+  const container = document.getElementById('branchEmpsContainer');
+  if (!container) return;
+
+  let html = '<div class="card">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
+    '<h3 style="margin:0;border:none;padding:0"><span>📝</span> บันทึกยอดขาย — สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(' + br.employees.length + ' คน)</span></h3>' +
+    '<button type="button" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' +
+    '</div>' +
+    '<div id="addEmpPanelInline" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;margin-bottom:14px">' +
+    '<div style="font-size:13px;font-weight:700;color:var(--red-dark);margin-bottom:10px">เพิ่มพนักงานใหม่เข้าสาขา' + br.name + '</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+    '<input type="text" id="newEmpNameInline" placeholder="ชื่อพนักงาน" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
+    '<select id="newEmpPosInline" style="flex:0 0 150px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
+    '<option value="Personal Trainer">💪 Personal Trainer</option>' +
+    '<option value="Sale">💼 Sale</option>' +
+    '</select>' +
+    '<button type="button" id="addEmpBtnInline" style="padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;background:var(--red);color:#fff">+ เพิ่มพนักงาน</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--gray-text);margin-top:8px;font-style:italic">💡 กดปุ่ม ✕ มุมขวาบนของการ์ดพนักงานเพื่อลบ</div>' +
+    '</div>';
+
+  if (!br.employees.length) {
+    html += '<div class="empty-state">ยังไม่มีพนักงาน — กด "⚙️ จัดการพนักงาน" เพื่อเพิ่ม</div>';
+  } else {
+    html += '<div class="employees-grid">' + br.employees.map(e => {
+      const t = empDailyTotals(br.id, e.id);
+      const pos = e.position || 'Sale';
+      const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
+      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
+      return '<div class="emp-card" style="position:relative">' +
+        '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
+        '<div class="emp-card-header">' + avatarHTML(e) +
+        '<div class="emp-card-info">' +
+        '<div class="emp-card-name" style="padding-right:30px">' + e.name + '</div>' +
+        '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+        '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
+        '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+        '</select>' +
+        '<div class="emp-card-id">' + e.id + '</div></div></div>' +
+        '<div class="emp-card-categories">' +
+        '<div class="emp-cat pt"><div class="emp-cat-label">💪 PT</div><div class="emp-cat-value">฿' + fmtShort(t.pt) + '</div></div>' +
+        '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(t.member) + '</div></div>' +
+        '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(t.plan) + '</div></div></div>' +
+        '<div class="emp-card-total">' +
+        '<span class="emp-card-total-label">รวม ' + t.days + ' วัน</span>' +
+        '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
+        '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+        '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
+        '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
+        '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
+        '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
+        '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
+        '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  const toggleBtn = document.getElementById('toggleAddEmp');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      const p = document.getElementById('addEmpPanelInline');
+      const open = p.style.display !== 'none';
+      p.style.display = open ? 'none' : 'block';
+      toggleBtn.textContent = open ? '⚙️ จัดการพนักงาน' : '✕ ปิด';
+    };
+  }
+
+  const addBtn = document.getElementById('addEmpBtnInline');
+  if (addBtn) {
+    addBtn.onclick = () => {
+      const input = document.getElementById('newEmpNameInline');
+      const name = input.value.trim();
+      const position = document.getElementById('newEmpPosInline').value;
+      if (!name) { input.focus(); return; }
+      if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
+      br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
+      saveBranches();
+      renderBranchView();
+      showToast('✓ เพิ่ม ' + name);
+    };
+    const nameInput = document.getElementById('newEmpNameInline');
+    if (nameInput) nameInput.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); } };
+  }
+
+  container.querySelectorAll('.inline-pos-select').forEach(sel => {
+    sel.onchange = () => {
+      const emp = br.employees.find(x => x.id === sel.dataset.eid);
+      if (emp) { emp.position = sel.value; saveBranches(); renderBranchView(); showToast('✓ อัปเดตตำแหน่ง ' + emp.name); }
+    };
+  });
+
+  container.querySelectorAll('[data-emp-del]').forEach(btn => {
+    btn.onclick = ev => {
+      ev.stopPropagation();
+      const id = btn.dataset.empDel;
+      const name = empName(id);
+      if (confirm('ลบพนักงาน "' + name + '" ออกจากสาขา' + br.name + '?\n(ยอดที่บันทึกไว้จะยังอยู่)')) {
+        br.employees = br.employees.filter(x => x.id !== id);
+        saveBranches();
+        renderBranchView();
+        showToast('🗑 ลบพนักงาน ' + name);
+      }
+    };
+  });
+
+  container.querySelectorAll('.inline-save-btn').forEach(btn => {
+    btn.onclick = () => {
+      const form = btn.closest('.inline-sales-form');
+      const bid = form.dataset.bid, eid = form.dataset.eid;
+      const date = form.querySelector('.inline-date').value;
+      if (!date) { showToast('⚠ เลือกวันที่', true); return; }
+      const pt = +form.querySelector('.inline-pt').value||0;
+      const m = +form.querySelector('.inline-member').value||0;
+      const pl = +form.querySelector('.inline-plan').value||0;
+      if (!DAILY[bid]) DAILY[bid] = {};
+      if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
+      DAILY[bid][eid][date] = { pt: pt, member: m, plan: pl };
+      saveDaily();
+      renderBranchView();
+      showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
+    };
+  });
 }
 
 function renderIndividualView() {
