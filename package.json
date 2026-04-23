@@ -1,0 +1,13 @@
+{
+  "name": "station24-fitness-dashboard",
+  "version": "1.0.0",
+  "description": "Station 24 Fitness — Sales Dashboard for recording employee sales across branches",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "start": "npx serve ."
+  },
+  "keywords": ["fitness", "dashboard", "sales", "station24"],
+  "author": "Station 24 Fitness",
+  "license": "MIT"
+}

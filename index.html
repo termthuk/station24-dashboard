@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Station 24 Fitness - ระบบบันทึกยอดขายพนักงาน แยกตามสาขา">
+<title>Station 24 Fitness — Sales Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23DC2626'/%3E%3Ctext x='50' y='68' font-family='Arial Black,sans-serif' font-size='48' font-weight='900' fill='%23fff' text-anchor='middle'%3E24%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-wrap">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+          <defs>
+            <path id="topArc" d="M 15,68 A 48,48 0 0 1 105,68" fill="none"/>
+          </defs>
+          <text font-family="Arial Black, Impact, sans-serif" font-size="17" font-weight="900"
+                fill="#ffffff" stroke="#DC2626" stroke-width="0.8" letter-spacing="1">
+            <textPath href="#topArc" startOffset="50%" text-anchor="middle">STATION</textPath>
+          </text>
+          <circle cx="60" cy="68" r="28" fill="#DC2626"/>
+          <text x="60" y="82" font-family="Arial Black, Impact, sans-serif" font-size="36"
+                font-weight="900" fill="#ffffff" text-anchor="middle">24</text>
+          <text x="60" y="112" font-family="Arial Black, Impact, sans-serif" font-size="12"
+                font-weight="900" fill="#DC2626" text-anchor="middle" letter-spacing="2.5">FITNESS</text>
+        </svg>
+      </div>
+      <div>
+        <h1>STATION <span class="accent">24</span> FITNESS</h1>
+        <div class="subtitle">Sales Dashboard — ระบบบันทึกยอดขายพนักงาน แยกตามสาขา</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="date-badge" id="dateBadge">📅 </div>
+      <button class="btn btn-ghost" id="exportBtn">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="branch-tabs" id="branchTabs"></div>
+
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <div class="content-grid">
+    <div class="card">
+      <h3><span class="icon">➕</span> บันทึกรายการขายใหม่</h3>
+      <form id="saleForm">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>วันที่</label>
+            <input type="date" id="f_date" required>
+          </div>
+          <div class="form-field">
+            <label>พนักงาน</label>
+            <select id="f_emp" required></select>
+          </div>
+          <div class="form-field">
+            <label>ประเภท</label>
+            <select id="f_type" required>
+              <option value="สมาชิกรายปี">สมาชิกรายปี</option>
+              <option value="สมาชิกรายเดือน">สมาชิกรายเดือน</option>
+              <option value="Personal Trainer">Personal Trainer</option>
+              <option value="คลาสกลุ่ม">คลาสกลุ่ม</option>
+              <option value="อาหารเสริม">อาหารเสริม</option>
+              <option value="เครื่องดื่ม">เครื่องดื่ม</option>
+              <option value="อื่นๆ">อื่นๆ</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>ช่องทางชำระ</label>
+            <select id="f_pay">
+              <option>เงินสด</option><option>โอน</option>
+              <option>บัตรเครดิต</option><option>QR Code</option>
+            </select>
+          </div>
+          <div class="form-field full">
+            <label>รายการ</label>
+            <input type="text" id="f_item" placeholder="เช่น Package Gold 12 เดือน" required>
+          </div>
+          <div class="form-field">
+            <label>จำนวน</label>
+            <input type="number" id="f_qty" min="1" value="1" required>
+          </div>
+          <div class="form-field">
+            <label>ราคา/หน่วย (บาท)</label>
+            <input type="number" id="f_price" min="0" step="0.01" required>
+          </div>
+          <div class="form-field">
+            <label>% คอมมิชชั่น</label>
+            <input type="number" id="f_comm" min="0" max="100" step="0.1" value="5">
+          </div>
+          <div class="form-field">
+            <label>หมายเหตุ</label>
+            <input type="text" id="f_note" placeholder="(ไม่บังคับ)">
+          </div>
+          <div class="form-field full" style="margin-top:6px">
+            <button type="submit" class="btn btn-primary">💾 บันทึกรายการ</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📊</span> ยอดขายตามประเภทสินค้า/บริการ</h3>
+      <div class="chart-wrap"><canvas id="typeChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="content-grid">
+    <div class="card">
+      <h3><span class="icon">👥</span> ยอดขายรายพนักงาน</h3>
+      <div class="chart-wrap"><canvas id="empChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3><span class="icon">📈</span> ยอดขายรายวัน</h3>
+      <div class="chart-wrap"><canvas id="dayChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <h3><span>📋</span> บันทึกรายการขาย — <span class="brand" id="activeBranchLabel">—</span></h3>
+      <div class="filter-row">
+        <input type="text" class="search-box" id="searchBox" placeholder="🔍 ค้นหาพนักงาน / รายการ...">
+        <select class="search-box" id="typeFilter" style="min-width:150px">
+          <option value="">ทุกประเภท</option>
+          <option>สมาชิกรายปี</option><option>สมาชิกรายเดือน</option>
+          <option>Personal Trainer</option><option>คลาสกลุ่ม</option>
+          <option>อาหารเสริม</option><option>เครื่องดื่ม</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table id="salesTable">
+        <thead>
+          <tr>
+            <th>วันที่</th><th>พนักงาน</th><th>ประเภท</th><th>รายการ</th>
+            <th class="num">จำนวน</th><th class="num">ราคา/หน่วย</th>
+            <th class="num">ยอดขาย</th><th class="num">คอมฯ</th>
+            <th>ชำระ</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="salesTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>© 2026 Station 24 Fitness · Sales Dashboard · Built with ❤️</p>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
