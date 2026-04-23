@@ -990,7 +990,10 @@ function renderSummaryChartView() {
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
       '</div></div>' +
-      '<div class="chart-wrap" style="height:340px"><canvas id="scGrouped_' + br.id + '"></canvas></div>' +
+      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">📊 ยอดแยก 3 หมวด (PT / MEMBER / PLAN) รายคน</div>' +
+      '<div class="chart-wrap" style="height:320px;margin-bottom:14px"><canvas id="scGrouped_' + br.id + '"></canvas></div>' +
+      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:10px;border-top:1px dashed var(--gray-line)">💰 ยอดรวมรายบุคคล (เรียงมาก → น้อย)</div>' +
+      '<div class="chart-wrap" style="height:' + Math.max(160, br.employees.length * 46) + 'px"><canvas id="scTotal_' + br.id + '"></canvas></div>' +
       '</div>';
   });
 
@@ -1026,6 +1029,29 @@ function renderSummaryChartView() {
         }
       });
     }
+
+    const totals = emps.map(x => x.total);
+    const maxT = Math.max(...totals, 0);
+    const totalCtx = document.getElementById('scTotal_' + br.id);
+    if (totalCtx && emps.length) {
+      scBranchCharts['t_' + br.id] = new Chart(totalCtx, {
+        type: 'bar',
+        data: { labels: labels, datasets: [
+          { label: '💰 ยอดรวม', data: totals,
+            backgroundColor: totals.map(v => v === maxT && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member),
+            borderRadius: 6, barThickness: 26 }
+        ]},
+        options: {
+          indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } } },
+          scales: {
+            x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
+            y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 11 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
   });
 
   container.querySelectorAll('.sc-save-btn').forEach(btn => {
@@ -1044,9 +1070,17 @@ function renderSummaryChartView() {
     Object.keys(scBranchCharts).forEach(k => {
       const ch = scBranchCharts[k];
       if (!ch || !ch.data || !ch.data.datasets) return;
-      if (ch.data.datasets[0]) ch.data.datasets[0].backgroundColor = CHART_COLORS.pt;
-      if (ch.data.datasets[1]) ch.data.datasets[1].backgroundColor = CHART_COLORS.member;
-      if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
+      if (k.startsWith('t_')) {
+        const ds = ch.data.datasets[0];
+        if (ds && Array.isArray(ds.data)) {
+          const mx = Math.max(...ds.data, 0);
+          ds.backgroundColor = ds.data.map(v => v === mx && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member);
+        }
+      } else {
+        if (ch.data.datasets[0]) ch.data.datasets[0].backgroundColor = CHART_COLORS.pt;
+        if (ch.data.datasets[1]) ch.data.datasets[1].backgroundColor = CHART_COLORS.member;
+        if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
+      }
       ch.update('none');
     });
     const ptHex = document.getElementById('scColorPTHex');
@@ -1217,17 +1251,22 @@ function exportToExcel() {
 // ===== saveBranchChart (for Summary view) =====
 function saveBranchChart(branchId, fmt, silent) {
   const chart = scBranchCharts['g_' + branchId];
+  const chartT = scBranchCharts['t_' + branchId];
   const br = getBranch(branchId);
   if (!chart || !br) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
   const src = chart.canvas;
   if (!src || !src.width || !src.height) { if (!silent) showToast('⚠ กราฟว่าง', true); return false; }
+  const srcT = chartT ? chartT.canvas : null;
 
   const bt = branchDailyTotals(branchId);
   const headerH = 110;
   const footerH = 40;
   const pad = 20;
-  const W = Math.max(src.width, 900);
-  const H = src.height + headerH + footerH;
+  const sectionGap = 30;
+  const labelH = 22;
+  const srcTH = (srcT && srcT.width && srcT.height) ? srcT.height : 0;
+  const W = Math.max(src.width, srcT ? srcT.width : 0, 900);
+  const H = src.height + (srcTH ? (labelH + srcTH + sectionGap) : 0) + headerH + footerH;
 
   const out = document.createElement('canvas');
   out.width = W; out.height = H;
@@ -1250,6 +1289,15 @@ function saveBranchChart(branchId, fmt, silent) {
 
   const cx = Math.round((W - src.width) / 2);
   ctx.drawImage(src, cx, headerH);
+
+  if (srcT && srcTH) {
+    const yLabel = headerH + src.height + sectionGap - 4;
+    ctx.fillStyle = '#0F0F0F';
+    ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+    ctx.fillText('💰 ยอดรวมรายบุคคล', pad, yLabel);
+    const cxT = Math.round((W - srcT.width) / 2);
+    ctx.drawImage(srcT, cxT, yLabel + labelH);
+  }
 
   ctx.fillStyle = '#9CA3AF';
   ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
