@@ -167,6 +167,7 @@ function setView(v) {
 function renderMenuNav() {
   if(document.getElementById('menuNav'))document.getElementById('menuNav').innerHTML =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
+    '<button class="menu-item ' + (currentView==='recordsales'?'active':'') + '" data-view="recordsales"><span class="menu-item-icon">📝</span><span>บันทึกยอดขายพนักงาน</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>';
@@ -303,144 +304,9 @@ function renderEmpMiniCharts() {
 }
 
 function renderBranchView() {
-  renderSidebar();
-  renderMainTitle();
-  renderKPIs();
-  renderBranchInline();
-}
-
-function renderBranchInline() {
-  const br = getBranch(activeBranch);
-  const today = new Date().toISOString().slice(0,10);
-  const container = document.getElementById('branchEmpsContainer');
-  if (!container) return;
-
-  let html = '<div class="card">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
-    '<h3 style="margin:0;border:none;padding:0"><span>📝</span> บันทึกยอดขาย — สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(' + br.employees.length + ' คน)</span></h3>' +
-    '<button type="button" class="btn-small" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' +
-    '</div>' +
-    '<div id="addEmpPanelInline" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;margin-bottom:14px">' +
-    '<div style="font-size:13px;font-weight:700;color:var(--red-dark);margin-bottom:10px">เพิ่มพนักงานใหม่เข้าสาขา' + br.name + '</div>' +
-    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-    '<input type="text" id="newEmpNameInline" placeholder="ชื่อพนักงาน" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
-    '<select id="newEmpPosInline" style="flex:0 0 150px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
-    '<option value="Personal Trainer">💪 Personal Trainer</option>' +
-    '<option value="Sale">💼 Sale</option>' +
-    '</select>' +
-    '<button type="button" id="addEmpBtnInline" style="padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;background:var(--red);color:#fff">+ เพิ่มพนักงาน</button>' +
-    '</div>' +
-    '<div style="font-size:11px;color:var(--gray-text);margin-top:8px;font-style:italic">💡 กดปุ่ม ✕ มุมขวาบนของการ์ดแต่ละคน เพื่อลบพนักงาน</div>' +
-    '</div>';
-
-  if (!br.employees.length) {
-    html += '<div class="empty-state">ยังไม่มีพนักงาน — กด "⚙️ จัดการพนักงาน" เพื่อเพิ่ม</div>';
-  } else {
-    html += '<div class="employees-grid">' + br.employees.map(e => {
-      const t = empDailyTotals(br.id, e.id);
-      const pos = e.position || 'Sale';
-      const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
-      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
-      return '<div class="emp-card" style="position:relative">' +
-        '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ '+ e.name +'" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
-        '<div class="emp-card-header">' + avatarHTML(e) +
-        '<div class="emp-card-info">' +
-        '<div class="emp-card-name" style="padding-right:30px">' + e.name + '</div>' +
-        '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-        '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
-        '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
-        '</select>' +
-        '<div class="emp-card-id">' + e.id + '</div></div></div>' +
-        '<div class="emp-card-categories">' +
-        '<div class="emp-cat pt"><div class="emp-cat-label">💪 PT</div><div class="emp-cat-value">฿' + fmtShort(t.pt) + '</div></div>' +
-        '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(t.member) + '</div></div>' +
-        '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(t.plan) + '</div></div></div>' +
-        '<div class="emp-card-total">' +
-        '<span class="emp-card-total-label">รวม ' + t.days + ' วัน</span>' +
-        '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
-        '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-        '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
-        '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
-        '</div></div>';
-    }).join('') + '</div>';
-  }
-
-  html += '</div>';
-  container.innerHTML = html;
-
-  // Toggle add panel
-  const toggleBtn = document.getElementById('toggleAddEmp');
-  if (toggleBtn) {
-    toggleBtn.onclick = () => {
-      const p = document.getElementById('addEmpPanelInline');
-      const open = p.style.display !== 'none';
-      p.style.display = open ? 'none' : 'block';
-      toggleBtn.textContent = open ? '⚙️ จัดการพนักงาน' : '✕ ปิด';
-    };
-  }
-
-  // Add employee
-  const addBtn = document.getElementById('addEmpBtnInline');
-  if (addBtn) {
-    addBtn.onclick = () => {
-      const input = document.getElementById('newEmpNameInline');
-      const name = input.value.trim();
-      const position = document.getElementById('newEmpPosInline').value;
-      if (!name) { input.focus(); return; }
-      if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
-      br.employees.push({ id: newEmpId(activeBranch), name, position, photo: '' });
-      saveBranches();
-      renderBranchView();
-      showToast('✓ เพิ่ม ' + name);
-    };
-    const nameInput = document.getElementById('newEmpNameInline');
-    if (nameInput) nameInput.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); } };
-  }
-
-  // Position dropdown
-  container.querySelectorAll('.inline-pos-select').forEach(sel => {
-    sel.onchange = () => {
-      const emp = br.employees.find(x => x.id === sel.dataset.eid);
-      if (emp) { emp.position = sel.value; saveBranches(); renderBranchView(); showToast('✓ อัปเดตตำแหน่ง ' + emp.name); }
-    };
-  });
-
-  // Delete employee
-  container.querySelectorAll('[data-emp-del]').forEach(btn => {
-    btn.onclick = ev => {
-      ev.stopPropagation();
-      const id = btn.dataset.empDel;
-      const name = empName(id);
-      if (confirm('ลบพนักงาน "' + name + '" ออกจากสาขา' + br.name + '?\n(ยอดที่บันทึกไว้จะยังอยู่)')) {
-        br.employees = br.employees.filter(x => x.id !== id);
-        saveBranches();
-        renderBranchView();
-        showToast('🗑 ลบพนักงาน ' + name);
-      }
-    };
-  });
-
-  // Save daily entry
-  container.querySelectorAll('.inline-save-btn').forEach(btn => {
-    btn.onclick = () => {
-      const form = btn.closest('.inline-sales-form');
-      const bid = form.dataset.bid, eid = form.dataset.eid;
-      const date = form.querySelector('.inline-date').value;
-      if (!date) { showToast('⚠ เลือกวันที่', true); return; }
-      const pt = +form.querySelector('.inline-pt').value||0;
-      const m = +form.querySelector('.inline-member').value||0;
-      const pl = +form.querySelector('.inline-plan').value||0;
-      if (!DAILY[bid]) DAILY[bid] = {};
-      if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
-      DAILY[bid][eid][date] = { pt, member: m, plan: pl };
-      saveDaily();
-      renderBranchView();
-      showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
-    };
-  });
+  renderSidebar(); renderMainTitle();
+  if(document.getElementById('empBranchLabel'))document.getElementById('empBranchLabel').textContent = getBranch(activeBranch).name;
+  renderEmployeeCards(); renderEmpMiniCharts(); renderKPIs();
 }
 
 function renderIndividualView() {
@@ -932,11 +798,9 @@ function renderSummaryChartView() {
   renderSidebar();
   const container = document.getElementById('summaryChartView');
 
-  // Destroy old charts
   Object.values(scBranchCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   scBranchCharts = {};
 
-  // Compute grand totals for KPIs
   let gP = 0, gM = 0, gPl = 0;
   BRANCHES.forEach(br => br.employees.forEach(e => {
     const t = empDailyTotals(br.id, e.id);
@@ -955,7 +819,7 @@ function renderSummaryChartView() {
     '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(gP+gM+gPl) + '</div><div class="kpi-sub">PT+MEMBER+PLAN</div></div>' +
     '</div>';
 
-  // Color customizer toolbar
+  // Color customizer
   html += '<div class="card" style="margin-bottom:16px;padding:12px 16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
     '<div style="font-size:13px;font-weight:700"><span>🎨</span> ปรับสีแท่งกราฟ</div>' +
@@ -978,16 +842,15 @@ function renderSummaryChartView() {
     '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorPlanHex">' + CHART_COLORS.plan + '</span></label>' +
     '</div></div>';
 
-  // Download-all toolbar
+  // Download all
   html += '<div class="card" style="margin-bottom:16px;padding:12px 16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">' +
     '<div style="font-size:13px;font-weight:700"><span>💾</span> บันทึกกราฟเป็นไฟล์ภาพ</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-    '<button type="button" class="btn-small sc-save-all" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 ดาวน์โหลดทั้งหมด (.png)</button>' +
-    '<button type="button" class="btn-small sc-save-all" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 ดาวน์โหลดทั้งหมด (.jpg)</button>' +
+    '<button type="button" class="sc-save-all" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 ดาวน์โหลดทั้งหมด (.png)</button>' +
+    '<button type="button" class="sc-save-all" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 ดาวน์โหลดทั้งหมด (.jpg)</button>' +
     '</div></div></div>';
 
-  // Per-branch sections
   BRANCHES.forEach(br => {
     const bt = branchDailyTotals(br.id);
     html += '<div class="card" style="margin-bottom:20px" data-sc-card="' + br.id + '">' +
@@ -997,8 +860,8 @@ function renderSummaryChartView() {
       'PT ฿' + fmt0(bt.pt) + ' · MEM ฿' + fmt0(bt.member) + ' · PLAN ฿' + fmt0(bt.plan) + ' · รวม ฿' + fmt0(bt.total) +
       '</span></h3>' +
       '<div style="display:flex;gap:6px">' +
-      '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="png" title="บันทึกเป็น PNG" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
-      '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" title="บันทึกเป็น JPG" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
+      '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
+      '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
       '</div></div>' +
       '<div class="chart-wrap" style="height:340px"><canvas id="scGrouped_' + br.id + '"></canvas></div>' +
       '</div>';
@@ -1006,7 +869,6 @@ function renderSummaryChartView() {
 
   container.innerHTML = html;
 
-  // Create charts per branch
   BRANCHES.forEach(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
@@ -1017,7 +879,6 @@ function renderSummaryChartView() {
     const pt  = emps.map(x => x.pt);
     const mem = emps.map(x => x.member);
     const pln = emps.map(x => x.plan);
-    const tot = emps.map(x => x.total);
 
     const grouped = document.getElementById('scGrouped_' + br.id);
     if (grouped && emps.length) {
@@ -1028,8 +889,7 @@ function renderSummaryChartView() {
           { label: '🎫 MEMBER', data: mem, backgroundColor: CHART_COLORS.member, borderRadius: 4 },
           { label: '📋 PLAN', data: pln, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
         ]},
-        options: { responsive: true, maintainAspectRatio: false,
-          animation: { duration: 0 },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
           plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, weight: 600 } } },
             tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
           scales: {
@@ -1041,14 +901,449 @@ function renderSummaryChartView() {
     }
   });
 
-  // Bind save buttons (per-branch)
   container.querySelectorAll('.sc-save-btn').forEach(btn => {
     btn.onclick = () => saveBranchChart(btn.dataset.bid, btn.dataset.fmt);
   });
-  // Bind save-all buttons
   container.querySelectorAll('.sc-save-all').forEach(btn => {
     btn.onclick = () => {
       const fmt = btn.dataset.fmt;
       let saved = 0;
       BRANCHES.forEach(br => { if (saveBranchChart(br.id, fmt, true)) saved++; });
-      showToast(saved ? '✓ ดาวน์โหลด ' + saved + ' ไฟล์ .' + fmt : '⚠ ไม่มีก�
+      showToast(saved ? '✓ ดาวน์โหลด ' + saved + ' ไฟล์ .' + fmt : '⚠ ไม่มีกราฟ', !saved);
+    };
+  });
+
+  function applyColorsLive() {
+    Object.keys(scBranchCharts).forEach(k => {
+      const ch = scBranchCharts[k];
+      if (!ch || !ch.data || !ch.data.datasets) return;
+      if (ch.data.datasets[0]) ch.data.datasets[0].backgroundColor = CHART_COLORS.pt;
+      if (ch.data.datasets[1]) ch.data.datasets[1].backgroundColor = CHART_COLORS.member;
+      if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
+      ch.update('none');
+    });
+    const ptHex = document.getElementById('scColorPTHex');
+    const memHex = document.getElementById('scColorMemberHex');
+    const plHex = document.getElementById('scColorPlanHex');
+    if (ptHex) ptHex.textContent = CHART_COLORS.pt.toUpperCase();
+    if (memHex) memHex.textContent = CHART_COLORS.member.toUpperCase();
+    if (plHex) plHex.textContent = CHART_COLORS.plan.toUpperCase();
+    const ptIn = document.getElementById('scColorPT');
+    const memIn = document.getElementById('scColorMember');
+    const plIn = document.getElementById('scColorPlan');
+    if (ptIn) ptIn.value = CHART_COLORS.pt;
+    if (memIn) memIn.value = CHART_COLORS.member;
+    if (plIn) plIn.value = CHART_COLORS.plan;
+  }
+
+  const ptInput = document.getElementById('scColorPT');
+  if (ptInput) ptInput.oninput = e => { CHART_COLORS.pt = e.target.value; saveChartColors(); applyColorsLive(); };
+  const memInput = document.getElementById('scColorMember');
+  if (memInput) memInput.oninput = e => { CHART_COLORS.member = e.target.value; saveChartColors(); applyColorsLive(); };
+  const plInput = document.getElementById('scColorPlan');
+  if (plInput) plInput.oninput = e => { CHART_COLORS.plan = e.target.value; saveChartColors(); applyColorsLive(); };
+
+  const presetSel = document.getElementById('scColorPreset');
+  if (presetSel) {
+    const cur = CHART_COLOR_PRESETS.find(p => p.pt === CHART_COLORS.pt && p.member === CHART_COLORS.member && p.plan === CHART_COLORS.plan);
+    presetSel.value = cur ? cur.id : 'default';
+    presetSel.onchange = () => {
+      const p = CHART_COLOR_PRESETS.find(x => x.id === presetSel.value);
+      if (!p) return;
+      CHART_COLORS.pt = p.pt; CHART_COLORS.member = p.member; CHART_COLORS.plan = p.plan;
+      saveChartColors(); applyColorsLive();
+      showToast('🎨 ใช้ชุดสี "' + p.name + '"');
+    };
+  }
+
+  const resetBtn = document.getElementById('scColorReset');
+  if (resetBtn) resetBtn.onclick = () => {
+    CHART_COLORS = Object.assign({}, DEFAULT_CHART_COLORS);
+    saveChartColors(); applyColorsLive();
+    if (presetSel) presetSel.value = 'default';
+    showToast('↺ คืนค่าสีเริ่มต้น');
+  };
+}
+
+// ===== Record Sales view (all employees with inline forms) =====
+function renderRecordSalesView() {
+  renderSidebar();
+  const today = new Date().toISOString().slice(0,10);
+  const container = document.getElementById('recordSalesContainer');
+  container.innerHTML = BRANCHES.map(br => {
+    if (!br.employees.length) {
+      return '<div class="card"><h3>' + br.emoji + ' สาขา' + br.name + '</h3><div class="empty-state">ยังไม่มีพนักงาน</div></div>';
+    }
+    return '<div class="card" style="margin-bottom:20px">' +
+      '<h3><span>' + br.emoji + '</span> สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(' + br.employees.length + ' คน)</span></h3>' +
+      '<div class="employees-grid">' +
+      br.employees.map(e => {
+        const t = empDailyTotals(br.id, e.id);
+        const pos = e.position || 'Sale';
+        const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
+        const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
+        return '<div class="emp-card">' +
+          '<div class="emp-card-header">' + avatarHTML(e) +
+          '<div class="emp-card-info">' +
+          '<div class="emp-card-name">' + e.name + '</div>' +
+          '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+          '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
+          '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+          '</select>' +
+          '<div class="emp-card-id">' + e.id + '</div></div></div>' +
+          '<div class="emp-card-categories">' +
+          '<div class="emp-cat pt"><div class="emp-cat-label">💪 PT</div><div class="emp-cat-value">฿' + fmtShort(t.pt) + '</div></div>' +
+          '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(t.member) + '</div></div>' +
+          '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(t.plan) + '</div></div></div>' +
+          '<div class="emp-card-total">' +
+          '<span class="emp-card-total-label">รวม ' + t.days + ' วัน</span>' +
+          '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
+          '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+          '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
+          '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button></div></div>';
+      }).join('') +
+      '</div></div>';
+  }).join('');
+
+  container.querySelectorAll('.inline-pos-select').forEach(sel => {
+    sel.onchange = () => {
+      const br = getBranch(sel.dataset.bid);
+      const emp = br.employees.find(x => x.id === sel.dataset.eid);
+      emp.position = sel.value; saveBranches();
+      showToast('✓ อัปเดตตำแหน่ง ' + emp.name);
+      renderRecordSalesView();
+    };
+  });
+  container.querySelectorAll('.inline-save-btn').forEach(btn => {
+    btn.onclick = () => {
+      const form = btn.closest('.inline-sales-form');
+      const bid = form.dataset.bid, eid = form.dataset.eid;
+      const date = form.querySelector('.inline-date').value;
+      if (!date) { showToast('⚠ เลือกวันที่', true); return; }
+      const pt = +form.querySelector('.inline-pt').value||0;
+      const m = +form.querySelector('.inline-member').value||0;
+      const pl = +form.querySelector('.inline-plan').value||0;
+      if (!DAILY[bid]) DAILY[bid] = {};
+      if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
+      DAILY[bid][eid][date] = { pt, member: m, plan: pl };
+      saveDaily();
+      renderRecordSalesView();
+      showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
+    };
+  });
+}
+
+// ===== Export to Excel =====
+function exportToExcel() {
+  if (typeof XLSX === 'undefined') { showToast('⚠ โหลด Excel lib ไม่สำเร็จ', true); return; }
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet
+  const summary = [['สาขา','พนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด Plan SETUP','รวม','จำนวนวัน']];
+  let gP=0, gM=0, gPl=0;
+  BRANCHES.forEach(br => {
+    br.employees.forEach(e => {
+      const t = empDailyTotals(br.id, e.id);
+      summary.push([br.name, e.name, e.position||'Sale', t.pt, t.member, t.plan, t.total, t.days]);
+      gP += t.pt; gM += t.member; gPl += t.plan;
+    });
+  });
+  summary.push(['รวมทั้งหมด', '', '', gP, gM, gPl, gP+gM+gPl, '']);
+  const wsSum = XLSX.utils.aoa_to_sheet(summary);
+  wsSum['!cols'] = [{wch:14},{wch:24},{wch:18},{wch:14},{wch:16},{wch:18},{wch:16},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'สรุปรวม');
+
+  // Per-branch daily sheets
+  BRANCHES.forEach(br => {
+    const data = [['วันที่','รหัสพนักงาน','ชื่อพนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด Plan SETUP','รวม']];
+    const allDates = new Set();
+    br.employees.forEach(e => { const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {}; for (const d in es) allDates.add(d); });
+    Array.from(allDates).sort().forEach(date => {
+      br.employees.forEach(e => {
+        const en = DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][date];
+        if (en) {
+          const pt = +en.pt||0, m = +en.member||0, pl = +en.plan||0;
+          data.push([date, e.id, e.name, e.position||'Sale', pt, m, pl, pt+m+pl]);
+        }
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{wch:12},{wch:14},{wch:22},{wch:18},{wch:14},{wch:16},{wch:18},{wch:14}];
+    XLSX.utils.book_append_sheet(wb, ws, 'รายวัน-' + br.name);
+  });
+
+  const filename = 'Station24_Sales_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  XLSX.writeFile(wb, filename);
+  showToast('✓ ดาวน์โหลด Excel เรียบร้อย');
+}
+
+// Bind export button (wait for DOM)
+(function bindExport(){
+  const btn = document.getElementById('exportBtn');
+  if (btn) btn.addEventListener('click', exportToExcel);
+})();
+
+
+// ===== saveBranchChart (for Summary view) =====
+function saveBranchChart(branchId, fmt, silent) {
+  const chart = scBranchCharts['g_' + branchId];
+  const br = getBranch(branchId);
+  if (!chart || !br) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
+  const src = chart.canvas;
+  if (!src || !src.width || !src.height) { if (!silent) showToast('⚠ กราฟว่าง', true); return false; }
+
+  const bt = branchDailyTotals(branchId);
+  const headerH = 110;
+  const footerH = 40;
+  const pad = 20;
+  const W = Math.max(src.width, 900);
+  const H = src.height + headerH + footerH;
+
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#DC2626'; ctx.fillRect(0, 0, W, 6);
+
+  ctx.fillStyle = '#0F0F0F';
+  ctx.font = 'bold 22px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.fillText('STATION 24 FITNESS — กราฟสรุปยอดขาย', pad, 20);
+
+  ctx.fillStyle = '#DC2626';
+  ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.fillText(br.emoji + '  สาขา' + br.name, pad, 52);
+
+  ctx.fillStyle = '#4B5563';
+  ctx.font = '13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.fillText('PT ฿' + fmt0(bt.pt) + '   MEMBER ฿' + fmt0(bt.member) + '   PLAN ฿' + fmt0(bt.plan) + '   รวม ฿' + fmt0(bt.total), pad, 80);
+
+  const cx = Math.round((W - src.width) / 2);
+  ctx.drawImage(src, cx, headerH);
+
+  ctx.fillStyle = '#9CA3AF';
+  ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  const dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+  ctx.fillText('© Station 24 Fitness · บันทึก ' + dateStr, pad, H - footerH + 12);
+  ctx.textAlign = 'right';
+  ctx.fillText('station24-dashboard', W - pad, H - footerH + 12);
+  ctx.textAlign = 'left';
+
+  const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const ext = fmt === 'jpg' ? 'jpg' : 'png';
+  const dataURL = out.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = 'Station24_Chart_' + br.name + '_' + new Date().toISOString().slice(0,10) + '.' + ext;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  if (!silent) showToast('✓ ดาวน์โหลด ' + br.name + '.' + ext);
+  return true;
+}
+
+// ===== History View =====
+let hsBranchChart = null;
+
+function hsGetRange() {
+  const mode = document.getElementById('hsMode') ? document.getElementById('hsMode').value : 'single';
+  if (mode === 'single') {
+    const d = document.getElementById('hsDate') ? document.getElementById('hsDate').value : '';
+    return { mode: mode, from: d || null, to: d || null };
+  }
+  const f = document.getElementById('hsFrom') ? document.getElementById('hsFrom').value : '';
+  const t = document.getElementById('hsTo') ? document.getElementById('hsTo').value : '';
+  return { mode: mode, from: f || null, to: t || null };
+}
+
+function hsRangeLabel(r) {
+  const fmt = d => new Date(d).toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'});
+  if (!r.from && !r.to) return 'ทั้งหมด';
+  if (r.mode === 'single' && r.from) return fmt(r.from);
+  if (r.from && r.to) return fmt(r.from) + ' — ' + fmt(r.to);
+  if (r.from) return 'ตั้งแต่ ' + fmt(r.from);
+  return 'ถึง ' + fmt(r.to);
+}
+
+function hsCollectRows() {
+  const r = hsGetRange();
+  const branchFilter = document.getElementById('hsBranch') ? document.getElementById('hsBranch').value : '';
+  const rows = [];
+  BRANCHES.forEach(br => {
+    if (branchFilter && br.id !== branchFilter) return;
+    br.employees.forEach(e => {
+      const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
+      for (const d in es) {
+        if (r.from && d < r.from) continue;
+        if (r.to && d > r.to) continue;
+        const pt = +es[d].pt||0, m = +es[d].member||0, pl = +es[d].plan||0;
+        rows.push({ date: d, branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
+          empId: e.id, empName: e.name, position: e.position || 'Sale',
+          pt: pt, member: m, plan: pl, total: pt + m + pl });
+      }
+    });
+  });
+  rows.sort((a, b) => {
+    if (a.date !== b.date) return b.date < a.date ? -1 : 1;
+    if (a.branchName !== b.branchName) return a.branchName < b.branchName ? -1 : 1;
+    return a.empName < b.empName ? -1 : 1;
+  });
+  return rows;
+}
+
+function renderHistoryView() {
+  renderSidebar();
+
+  const bSel = document.getElementById('hsBranch');
+  if (bSel && bSel.dataset.populated !== '1') {
+    const cur = bSel.value;
+    bSel.innerHTML = '<option value="">🏢 ทุกสาขา</option>' +
+      BRANCHES.map(b => '<option value="' + b.id + '">' + b.emoji + ' สาขา' + b.name + '</option>').join('');
+    bSel.value = cur;
+    bSel.dataset.populated = '1';
+  }
+
+  const mode = document.getElementById('hsMode') ? document.getElementById('hsMode').value : 'single';
+  const sg = document.getElementById('hsSingleGroup');
+  const rg = document.getElementById('hsRangeGroup');
+  if (sg) sg.style.display = mode === 'single' ? 'flex' : 'none';
+  if (rg) rg.style.display = mode === 'range' ? 'flex' : 'none';
+
+  const r = hsGetRange();
+  const badge = document.getElementById('hsRangeBadge');
+  if (badge) badge.innerHTML = '🎯 กำลังดู: <strong style="margin-left:4px">' + hsRangeLabel(r) + '</strong>' +
+    (document.getElementById('hsBranch') && document.getElementById('hsBranch').value ? ' · <strong>สาขา' + getBranch(document.getElementById('hsBranch').value).name + '</strong>' : '');
+
+  const rows = hsCollectRows();
+
+  let sP=0, sM=0, sPl=0;
+  const uniqEmp = new Set(), uniqDate = new Set();
+  rows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; uniqEmp.add(x.empId); uniqDate.add(x.date); });
+  const sT = sP + sM + sPl;
+  const kpiEl = document.getElementById('hsKpis');
+  if (kpiEl) kpiEl.innerHTML =
+    '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอด PT</div><div class="kpi-value">฿' + fmt0(sP) + '</div><div class="kpi-sub">' + uniqEmp.size + ' คน · ' + uniqDate.size + ' วัน</div></div>' +
+    '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอด MEMBER</div><div class="kpi-value">฿' + fmt0(sM) + '</div><div class="kpi-sub">ในช่วงที่เลือก</div></div>' +
+    '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP</div><div class="kpi-value">฿' + fmt0(sPl) + '</div><div class="kpi-sub">ในช่วงที่เลือก</div></div>' +
+    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">รวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(sT) + '</div><div class="kpi-sub">' + rows.length + ' รายการ</div></div>';
+
+  const branchData = {};
+  BRANCHES.forEach(b => { branchData[b.id] = { pt:0, member:0, plan:0 }; });
+  rows.forEach(x => { branchData[x.branchId].pt += x.pt; branchData[x.branchId].member += x.member; branchData[x.branchId].plan += x.plan; });
+  const ctx = document.getElementById('hsBranchChart');
+  if (hsBranchChart) { try { hsBranchChart.destroy(); } catch(e){} hsBranchChart = null; }
+  if (ctx) {
+    hsBranchChart = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: BRANCHES.map(b => b.emoji + ' ' + b.name), datasets: [
+        { label: '💪 PT', data: BRANCHES.map(b => branchData[b.id].pt), backgroundColor: '#DC2626', borderRadius: 6 },
+        { label: '🎫 MEMBER', data: BRANCHES.map(b => branchData[b.id].member), backgroundColor: '#1F1F1F', borderRadius: 6 },
+        { label: '📋 PLAN', data: BRANCHES.map(b => branchData[b.id].plan), backgroundColor: '#D97706', borderRadius: 6 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: v => '฿' + fmtShort(v) }, grid: { color: '#F3F4F6' } } }
+      }
+    });
+  }
+
+  const cBadge = document.getElementById('hsCountBadge');
+  if (cBadge) cBadge.textContent = '(' + rows.length + ' รายการ)';
+  const body = document.getElementById('hsTableBody');
+  if (body) {
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-text)">📭 ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
+    } else {
+      body.innerHTML = rows.map(x => {
+        const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
+        return '<tr>' +
+          '<td><strong>' + x.date + '</strong></td>' +
+          '<td>' + x.branchEmoji + ' ' + x.branchName + '</td>' +
+          '<td>' + x.empName + '</td>' +
+          '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
+          '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
+          '<td class="num">฿' + fmt0(x.member) + '</td>' +
+          '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
+          '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
+          '<td><button class="hs-del" data-bid="' + x.branchId + '" data-eid="' + x.empId + '" data-date="' + x.date + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
+          '</tr>';
+      }).join('');
+      body.querySelectorAll('.hs-del').forEach(btn => {
+        btn.onclick = () => {
+          const bid = btn.dataset.bid, eid = btn.dataset.eid, d = btn.dataset.date;
+          if (confirm('ลบยอดของ ' + empName(eid) + ' วันที่ ' + d + '?')) {
+            if (DAILY[bid] && DAILY[bid][eid]) delete DAILY[bid][eid][d];
+            saveDaily();
+            renderHistoryView();
+            showToast('🗑 ลบ ' + d);
+          }
+        };
+      });
+    }
+  }
+}
+
+function hsExportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('⚠ โหลด Excel lib ไม่สำเร็จ', true); return; }
+  const rows = hsCollectRows();
+  if (!rows.length) { showToast('⚠ ไม่มีข้อมูลในช่วงนี้', true); return; }
+  const r = hsGetRange();
+  const data = [['วันที่','สาขา','รหัส','ชื่อพนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด Plan SETUP','รวม']];
+  let tP=0, tM=0, tPl=0;
+  rows.forEach(x => { data.push([x.date, x.branchName, x.empId, x.empName, x.position, x.pt, x.member, x.plan, x.total]); tP+=x.pt; tM+=x.member; tPl+=x.plan; });
+  data.push(['รวม','','','','', tP, tM, tPl, tP+tM+tPl]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:12},{wch:14},{wch:14},{wch:22},{wch:18},{wch:14},{wch:16},{wch:18},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, 'ประวัติยอดขาย');
+  const tag = (r.from || 'all') + (r.to && r.to !== r.from ? '_to_' + r.to : '');
+  XLSX.writeFile(wb, 'Station24_History_' + tag + '.xlsx');
+  showToast('✓ ดาวน์โหลด Excel');
+}
+
+(function bindHistory(){
+  const today = new Date().toISOString().slice(0,10);
+  const dateEl = document.getElementById('hsDate');
+  if (dateEl && !dateEl.value) dateEl.value = today;
+  const fromEl = document.getElementById('hsFrom');
+  const toEl = document.getElementById('hsTo');
+  if (fromEl && !fromEl.value) {
+    const t = new Date(); const p = n => String(n).padStart(2,'0');
+    fromEl.value = t.getFullYear() + '-' + p(t.getMonth()+1) + '-01';
+  }
+  if (toEl && !toEl.value) toEl.value = today;
+
+  const add = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('change', fn); };
+  add('hsMode', renderHistoryView);
+  add('hsDate', renderHistoryView);
+  add('hsFrom', renderHistoryView);
+  add('hsTo', renderHistoryView);
+  add('hsBranch', renderHistoryView);
+  const exp = document.getElementById('hsExportBtn');
+  if (exp) exp.addEventListener('click', hsExportExcel);
+
+  const preset = document.getElementById('hsPreset');
+  if (preset) preset.addEventListener('change', ev => {
+    const v = ev.target.value; if (!v) return;
+    const t = new Date(); const p = n => String(n).padStart(2,'0');
+    const iso = d => d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+    const modeEl = document.getElementById('hsMode');
+    if (v === 'today' || v === 'yesterday') {
+      if (modeEl) modeEl.value = 'single';
+      const d = v === 'today' ? t : (() => { const y = new Date(t); y.setDate(y.getDate()-1); return y; })();
+      const dateInput = document.getElementById('hsDate'); if (dateInput) dateInput.value = iso(d);
+    } else {
+      if (modeEl) modeEl.value = 'range';
+      let f, to;
+      if (v === 'week') { const w = new Date(t); w.setDate(w.getDate()-6); f = iso(w); to = iso(t); }
+      else if (v === 'month') { f = iso(new Date(t.getFullYear(), t.getMonth(), 1)); to = iso(new Date(t.getFullYear(), t.getMonth()+1, 0)); }
+      else if (v === 'lastmonth') { f = iso(new Date(t.getFullYear(), t.getMonth()-1, 1)); to = iso(new Date(t.getFullYear(), t.getMonth(), 0)); }
+      else if (v === 'all') { f = ''; to = ''; }
+      const fromI = document.getElementById('hsFrom'); if (fromI) fromI.value = f || '';
+      const toI = document.getElementById('hsTo'); if (toI) toI.value = to || '';
+    }
+    renderHistoryView();
+    ev.target.value = '';
+  });
+})();
