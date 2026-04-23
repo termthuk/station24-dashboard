@@ -185,11 +185,9 @@ function renderSidebar() {
   }).join('');
   document.querySelectorAll('#branchNav .branch-item').forEach(btn => btn.onclick = () => {
     activeBranch = btn.dataset.id; activeEmployee = null;
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebarBackdrop').classList.remove('show');
-    if (currentView === 'branch') renderBranchView();
-    else if (currentView === 'individual') renderIndividualView();
-    else setView('overview');
+    if (document.getElementById('sidebar')) document.getElementById('sidebar').classList.remove('open');
+    if (document.getElementById('sidebarBackdrop')) document.getElementById('sidebarBackdrop').classList.remove('show');
+    setView('branch');
   });
 }
 
