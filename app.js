@@ -131,12 +131,12 @@ function compressImage(file) {
 
 function setView(v) {
   currentView = v;
-  document.getElementById('branchView').style.display      = v === 'branch' ? 'block' : 'none';
-  document.getElementById('overviewView').style.display    = v === 'overview' ? 'block' : 'none';
-  document.getElementById('recordSalesView').style.display = v === 'recordsales' ? 'block' : 'none';
-  document.getElementById('summaryChartView').style.display = v === 'summarychart' ? 'block' : 'none';
-  document.getElementById('rankingView').style.display     = v === 'ranking' ? 'block' : 'none';
-  document.getElementById('branchListSection').style.display = 'block';
+  if(document.getElementById('branchView'))document.getElementById('branchView').style.display = v === 'branch' ? 'block' : 'none';
+  if(document.getElementById('overviewView'))document.getElementById('overviewView').style.display = v === 'overview' ? 'block' : 'none';
+  if(document.getElementById('recordSalesView'))document.getElementById('recordSalesView').style.display = v === 'recordsales' ? 'block' : 'none';
+  if(document.getElementById('summaryChartView'))document.getElementById('summaryChartView').style.display = v === 'summarychart' ? 'block' : 'none';
+  if(document.getElementById('rankingView'))document.getElementById('rankingView').style.display = v === 'ranking' ? 'block' : 'none';
+  if(document.getElementById('branchListSection'))document.getElementById('branchListSection').style.display = 'block';
   renderMenuNav();
   if (v === 'branch') renderBranchView();
   else if (v === 'overview') renderOverviewView();
@@ -146,7 +146,7 @@ function setView(v) {
 }
 
 function renderMenuNav() {
-  document.getElementById('menuNav').innerHTML =
+  if(document.getElementById('menuNav'))document.getElementById('menuNav').innerHTML =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
     '<button class="menu-item ' + (currentView==='recordsales'?'active':'') + '" data-view="recordsales"><span class="menu-item-icon">📝</span><span>บันทึกยอดขายพนักงาน</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
@@ -155,7 +155,7 @@ function renderMenuNav() {
 }
 
 function renderSidebar() {
-  document.getElementById('branchNav').innerHTML = BRANCHES.map(b => {
+  if(document.getElementById('branchNav'))document.getElementById('branchNav').innerHTML = BRANCHES.map(b => {
     const t = branchDailyTotals(b.id);
     return '<button class="branch-item ' + (b.id===activeBranch?'active':'') + '" data-id="' + b.id + '">' +
       '<span class="branch-item-icon">' + b.emoji + '</span>' +
@@ -176,11 +176,11 @@ function renderSidebar() {
 
 function renderMainTitle() {
   const br = getBranch(activeBranch);
-  document.getElementById('mainBranchEmoji').textContent = br.emoji;
-  document.getElementById('mainBranchName').textContent = br.name;
+  if(document.getElementById('mainBranchEmoji'))document.getElementById('mainBranchEmoji').textContent = br.emoji;
+  if(document.getElementById('mainBranchName'))document.getElementById('mainBranchName').textContent = br.name;
   const banner = document.getElementById('empFilterBanner');
   if (activeEmployee) {
-    document.getElementById('empFilterName').textContent = empName(activeEmployee);
+    if(document.getElementById('empFilterName'))document.getElementById('empFilterName').textContent = empName(activeEmployee);
     banner.style.display = 'flex';
   } else banner.style.display = 'none';
 }
@@ -188,7 +188,7 @@ function renderMainTitle() {
 function renderKPIs() {
   const bd = activeEmployee ? empDailyTotals(activeBranch, activeEmployee) : branchDailyTotals(activeBranch);
   const scope = activeEmployee ? empName(activeEmployee) : getBranch(activeBranch).name;
-  document.getElementById('kpiGrid').innerHTML =
+  if(document.getElementById('kpiGrid'))document.getElementById('kpiGrid').innerHTML =
     '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอดขาย PT (' + scope + ')</div><div class="kpi-value">฿' + fmt0(bd.pt) + '</div><div class="kpi-sub">Personal Trainer</div></div>' +
     '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอดขาย MEMBER</div><div class="kpi-value">฿' + fmt0(bd.member) + '</div><div class="kpi-sub">Membership</div></div>' +
     '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">ยอด Plan SETUP</div><div class="kpi-value">฿' + fmt0(bd.plan) + '</div><div class="kpi-sub">Plan setup</div></div>' +
@@ -285,14 +285,14 @@ function renderEmpMiniCharts() {
 
 function renderBranchView() {
   renderSidebar(); renderMainTitle();
-  document.getElementById('empBranchLabel').textContent = getBranch(activeBranch).name;
+  if(document.getElementById('empBranchLabel'))document.getElementById('empBranchLabel').textContent = getBranch(activeBranch).name;
   renderEmployeeCards(); renderEmpMiniCharts(); renderKPIs();
 }
 
 function renderIndividualView() {
   renderSidebar();
   const br = getBranch(activeBranch);
-  document.getElementById('indivBranchName').textContent = 'สาขา' + br.name;
+  if(document.getElementById('indivBranchName'))document.getElementById('indivBranchName').textContent = 'สาขา' + br.name;
   const emps = br.employees;
   const labels = emps.map(e => e.name);
   const ptData = emps.map(e => empDailyTotals(activeBranch, e.id).pt);
@@ -386,25 +386,25 @@ function renderRankingView() {
 
 function openDailyModal(empId) {
   activeDailyEmp = empId; const e = empById(empId);
-  document.getElementById('dailyModalEmpName').textContent = e.name + ' · ' + (e.position||'Sale');
+  if(document.getElementById('dailyModalEmpName'))document.getElementById('dailyModalEmpName').textContent = e.name + ' · ' + (e.position||'Sale');
   const today = new Date().toISOString().slice(0,10);
-  document.getElementById('dailyDate').value = today;
+  if(document.getElementById('dailyDate'))document.getElementById('dailyDate').value = today;
   loadDailyIntoForm(empId, today); renderDailyHistory(empId);
   document.getElementById('dailyModal').classList.add('show');
 }
 function closeDailyModal() { document.getElementById('dailyModal').classList.remove('show'); activeDailyEmp = null; }
 function loadDailyIntoForm(empId, date) {
   const entry = DAILY[activeBranch] && DAILY[activeBranch][empId] && DAILY[activeBranch][empId][date];
-  document.getElementById('dailyPT').value = entry ? (entry.pt||'') : '';
-  document.getElementById('dailyMember').value = entry ? (entry.member||'') : '';
-  document.getElementById('dailyPlan').value = entry ? (entry.plan||'') : '';
+  if(document.getElementById('dailyPT'))document.getElementById('dailyPT').value = entry ? (entry.pt||'') : '';
+  if(document.getElementById('dailyMember'))document.getElementById('dailyMember').value = entry ? (entry.member||'') : '';
+  if(document.getElementById('dailyPlan'))document.getElementById('dailyPlan').value = entry ? (entry.plan||'') : '';
   updateDailyPreview();
 }
 function updateDailyPreview() {
   const pt = +document.getElementById('dailyPT').value||0;
   const m = +document.getElementById('dailyMember').value||0;
   const p = +document.getElementById('dailyPlan').value||0;
-  document.getElementById('dailyTotalPreview').textContent = '฿' + fmt0(pt+m+p);
+  if(document.getElementById('dailyTotalPreview'))document.getElementById('dailyTotalPreview').textContent = '฿' + fmt0(pt+m+p);
 }
 function saveDailyEntry() {
   if (!activeDailyEmp) return;
@@ -438,7 +438,7 @@ function renderDailyHistory(empId) {
       '<td><button class="btn-danger" data-edit="' + d + '">✎</button>' +
       '<button class="btn-danger" data-daily-del="' + d + '" style="background:#FEE2E2">🗑</button></td></tr>';
   }).join('');
-  body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const d = b.dataset.edit; document.getElementById('dailyDate').value = d; loadDailyIntoForm(empId, d); });
+  body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const d = b.dataset.edit; if(document.getElementById('dailyDate'))document.getElementById('dailyDate').value = d; loadDailyIntoForm(empId, d); });
   body.querySelectorAll('[data-daily-del]').forEach(b => b.onclick = () => {
     if (confirm('ลบ ' + b.dataset.dailyDel + '?')) {
       delete DAILY[activeBranch][empId][b.dataset.dailyDel]; saveDaily(); renderDailyHistory(empId);
@@ -452,16 +452,16 @@ function renderDailyHistory(empId) {
 function openEditEmpModal(empId) {
   const e = empById(empId); if (!e) return;
   activeEditEmp = empId; editEmpPhotoBase64 = e.photo || '';
-  document.getElementById('editEmpSubtitle').textContent = e.name + ' · ' + e.id;
-  document.getElementById('editEmpName').value = e.name;
-  document.getElementById('editEmpPosition').value = e.position || 'Sale';
+  if(document.getElementById('editEmpSubtitle'))document.getElementById('editEmpSubtitle').textContent = e.name + ' · ' + e.id;
+  if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
+  if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
 }
 function closeEditEmpModal() {
   document.getElementById('editEmpModal').classList.remove('show');
   activeEditEmp = null; editEmpPhotoBase64 = '';
-  document.getElementById('editEmpPhotoInput').value = '';
+  if(document.getElementById('editEmpPhotoInput'))document.getElementById('editEmpPhotoInput').value = '';
 }
 function updateEditEmpPhotoPreview() {
   const img = document.getElementById('editEmpPhotoPreview');
@@ -489,24 +489,24 @@ function showToast(msg, isError) {
   t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2400);
 }
 
-document.getElementById('dailyModalClose').addEventListener('click', closeDailyModal);
-document.getElementById('dailyModal').addEventListener('click', e => { if (e.target.id === 'dailyModal') closeDailyModal(); });
-document.getElementById('dailyForm').addEventListener('submit', e => { e.preventDefault(); saveDailyEntry(); });
-document.getElementById('dailyDate').addEventListener('change', () => { if (activeDailyEmp) loadDailyIntoForm(activeDailyEmp, document.getElementById('dailyDate').value); });
+document.getElementById('dailyModalClose')?.addEventListener('click', closeDailyModal);
+document.getElementById('dailyModal')?.addEventListener('click', e => { if (e.target.id === 'dailyModal') closeDailyModal(); });
+document.getElementById('dailyForm')?.addEventListener('submit', e => { e.preventDefault(); saveDailyEntry(); });
+document.getElementById('dailyDate')?.addEventListener('change', () => { if (activeDailyEmp) loadDailyIntoForm(activeDailyEmp, document.getElementById('dailyDate').value); });
 ['dailyPT','dailyMember','dailyPlan'].forEach(id => document.getElementById(id).addEventListener('input', updateDailyPreview));
-document.getElementById('editEmpClose').addEventListener('click', closeEditEmpModal);
-document.getElementById('editEmpModal').addEventListener('click', e => { if (e.target.id === 'editEmpModal') closeEditEmpModal(); });
-document.getElementById('editEmpForm').addEventListener('submit', e => { e.preventDefault(); saveEditEmp(); });
-document.getElementById('editEmpPhotoBtn').addEventListener('click', () => document.getElementById('editEmpPhotoInput').click());
-document.getElementById('editEmpPhotoInput').addEventListener('change', async ev => {
+document.getElementById('editEmpClose')?.addEventListener('click', closeEditEmpModal);
+document.getElementById('editEmpModal')?.addEventListener('click', e => { if (e.target.id === 'editEmpModal') closeEditEmpModal(); });
+document.getElementById('editEmpForm')?.addEventListener('submit', e => { e.preventDefault(); saveEditEmp(); });
+document.getElementById('editEmpPhotoBtn')?.addEventListener('click', () => document.getElementById('editEmpPhotoInput').click());
+document.getElementById('editEmpPhotoInput')?.addEventListener('change', async ev => {
   const f = ev.target.files && ev.target.files[0]; if (!f) return;
   if (f.size > 10 * 1024 * 1024) { showToast('⚠ ไฟล์ใหญ่เกิน 10MB', true); return; }
   try { editEmpPhotoBase64 = await compressImage(f); updateEditEmpPhotoPreview(); showToast('✓ อัปโหลดรูป'); } catch(e) { showToast('⚠ อัปโหลดไม่ได้', true); }
 });
-document.getElementById('editEmpPhotoRemove').addEventListener('click', () => { editEmpPhotoBase64 = ''; updateEditEmpPhotoPreview(); });
+document.getElementById('editEmpPhotoRemove')?.addEventListener('click', () => { editEmpPhotoBase64 = ''; updateEditEmpPhotoPreview(); });
 
-document.getElementById('clearEmpFilter').addEventListener('click', () => { activeEmployee = null; renderBranchView(); });
-document.getElementById('toggleEmpMgmt').addEventListener('click', () => {
+document.getElementById('clearEmpFilter')?.addEventListener('click', () => { activeEmployee = null; renderBranchView(); });
+document.getElementById('toggleEmpMgmt')?.addEventListener('click', () => {
   const p = document.getElementById('empPanel'); const b = document.getElementById('toggleEmpMgmt');
   const o = p.style.display !== 'none'; p.style.display = o ? 'none' : 'block';
   b.classList.toggle('active', !o); b.textContent = o ? '⚙️ จัดการพนักงาน' : '✕ ปิด';
@@ -520,18 +520,18 @@ function addEmployee() {
   br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
   saveBranches(); input.value = ''; renderBranchView(); showToast('✓ เพิ่ม ' + name);
 }
-document.getElementById('addEmpBtn').addEventListener('click', addEmployee);
-document.getElementById('newEmpName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addEmployee(); } });
-document.getElementById('sidebarToggle').addEventListener('click', () => {
+document.getElementById('addEmpBtn')?.addEventListener('click', addEmployee);
+document.getElementById('newEmpName')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addEmployee(); } });
+document.getElementById('sidebarToggle')?.addEventListener('click', () => {
   document.getElementById('sidebar').classList.toggle('open');
   document.getElementById('sidebarBackdrop').classList.toggle('show');
 });
-document.getElementById('sidebarBackdrop').addEventListener('click', () => {
+document.getElementById('sidebarBackdrop')?.addEventListener('click', () => {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarBackdrop').classList.remove('show');
 });
 
-document.getElementById('exportBtn').addEventListener('click', () => {
+document.getElementById('exportBtn')?.addEventListener('click', () => {
   if (typeof XLSX === 'undefined') { showToast('⚠ โหลด Excel lib ไม่สำเร็จ', true); return; }
   const wb = XLSX.utils.book_new();
   const summaryRows = [['สาขา','พนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด PLAN','รวม 3 หมวด']];
@@ -561,7 +561,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   showToast('✓ ดาวน์โหลด Excel');
 });
 
-document.getElementById('dateBadge').textContent = '📅 ' + new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
+if(document.getElementById('dateBadge'))document.getElementById('dateBadge').textContent = '📅 ' + new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
 setView('overview');
 
 // ===== Overview view =====
@@ -587,7 +587,7 @@ function ovRangeLabel(r) {
 function renderOverviewView() {
   renderSidebar();
   const r = ovRange();
-  document.getElementById('ovRangeBadge').innerHTML = '🎯 ช่วงที่ดู: <strong style="margin-left:4px">' + ovRangeLabel(r) + '</strong>';
+  if(document.getElementById('ovRangeBadge'))document.getElementById('ovRangeBadge').innerHTML = '🎯 ช่วงที่ดู: <strong style="margin-left:4px">' + ovRangeLabel(r) + '</strong>';
 
   // Aggregate across all branches in range
   const byDate = {};
@@ -610,7 +610,7 @@ function renderOverviewView() {
   });
   const gT = gP + gM + gPl;
 
-  document.getElementById('ovKpis').innerHTML =
+  if(document.getElementById('ovKpis'))document.getElementById('ovKpis').innerHTML =
     '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอดขาย PT</div><div class="kpi-value">฿' + fmt0(gP) + '</div><div class="kpi-sub">Personal Trainer</div></div>' +
     '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอดขาย MEMBER</div><div class="kpi-value">฿' + fmt0(gM) + '</div><div class="kpi-sub">Membership</div></div>' +
     '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP</div><div class="kpi-value">฿' + fmt0(gPl) + '</div><div class="kpi-sub">Plan setup</div></div>' +
@@ -648,9 +648,9 @@ function renderOverviewView() {
 
 
 // ===== Overview event handlers =====
-document.getElementById('ovFrom').addEventListener('change', renderOverviewView);
-document.getElementById('ovTo').addEventListener('change', renderOverviewView);
-document.getElementById('ovPreset').addEventListener('change', ev => {
+document.getElementById('ovFrom')?.addEventListener('change', renderOverviewView);
+document.getElementById('ovTo')?.addEventListener('change', renderOverviewView);
+document.getElementById('ovPreset')?.addEventListener('change', ev => {
   const v = ev.target.value; if (!v) return;
   const t = new Date(); const p = n => String(n).padStart(2,'0');
   const iso = d => d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
@@ -661,8 +661,8 @@ document.getElementById('ovPreset').addEventListener('change', ev => {
   else if (v === 'month') { f = iso(new Date(t.getFullYear(), t.getMonth(), 1)); to = iso(new Date(t.getFullYear(), t.getMonth()+1, 0)); }
   else if (v === 'lastmonth') { f = iso(new Date(t.getFullYear(), t.getMonth()-1, 1)); to = iso(new Date(t.getFullYear(), t.getMonth(), 0)); }
   else if (v === 'all') { f = ''; to = ''; }
-  document.getElementById('ovFrom').value = f;
-  document.getElementById('ovTo').value = to;
+  if(document.getElementById('ovFrom'))document.getElementById('ovFrom').value = f;
+  if(document.getElementById('ovTo'))document.getElementById('ovTo').value = to;
   renderOverviewView();
   ev.target.value = '';
 });
@@ -672,8 +672,8 @@ document.getElementById('ovPreset').addEventListener('change', ev => {
   const t = new Date(); const p = n => String(n).padStart(2,'0');
   const first = t.getFullYear() + '-' + p(t.getMonth()+1) + '-01';
   const last = t.getFullYear() + '-' + p(t.getMonth()+1) + '-' + p(new Date(t.getFullYear(), t.getMonth()+1, 0).getDate());
-  document.getElementById('ovFrom').value = first;
-  document.getElementById('ovTo').value = last;
+  if(document.getElementById('ovFrom'))document.getElementById('ovFrom').value = first;
+  if(document.getElementById('ovTo'))document.getElementById('ovTo').value = last;
 })();
 
 
