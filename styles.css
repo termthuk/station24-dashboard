@@ -691,6 +691,54 @@ tbody tr:hover { background: #FEF2F2; }
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== Inline position dropdown + sales form (Employees view) ===== */
+.inline-pos-select {
+  display: inline-block; margin-bottom: 3px;
+  font-family: inherit; font-size: 10px; font-weight: 700;
+  padding: 3px 8px; border-radius: 9px; border: none;
+  cursor: pointer; outline: none;
+}
+.inline-pos-select.pt-pos { background: #FEE2E2; color: #991B1B; }
+.inline-pos-select.sale-pos { background: #1F1F1F; color: #fff; }
+.inline-pos-select:hover { box-shadow: 0 0 0 2px rgba(220,38,38,0.2); }
+
+.inline-sales-form {
+  margin-top: 4px; padding: 10px;
+  background: #FAFAFA; border: 1px dashed #E5E7EB;
+  border-radius: 8px;
+}
+.inline-date-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.inline-date-row label { font-size: 13px; }
+.inline-date-row input {
+  flex: 1; padding: 6px 8px; border: 1px solid var(--gray-line);
+  border-radius: 6px; font-family: inherit; font-size: 11px; background: #fff;
+}
+.inline-input-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
+}
+.inline-label {
+  font-size: 10px; font-weight: 700; width: 60px; flex-shrink: 0;
+  padding: 3px 6px; border-radius: 5px; text-align: center;
+}
+.inline-label.pt { background: #FEE2E2; color: #991B1B; }
+.inline-label.member { background: #1F1F1F; color: #fff; }
+.inline-label.plan { background: #FEF3C7; color: #92400E; }
+.inline-input-row input {
+  flex: 1; padding: 6px 8px; border: 1px solid var(--gray-line);
+  border-radius: 6px; font-family: inherit; font-size: 12px;
+  background: #fff; font-weight: 700; color: var(--black);
+  text-align: right;
+}
+.inline-input-row input:focus {
+  outline: none; border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(220,38,38,0.15);
+}
+.inline-save-btn {
+  margin-top: 8px !important;
+}
+
 /* ===== Ranking view ===== */
 .ranking-branch-card {
   background: #fff; border-radius: 14px; padding: 20px;

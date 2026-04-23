@@ -51,10 +51,6 @@
         <div class="sidebar-heading">🏢 สาขา</div>
         <nav class="branch-nav" id="branchNav"></nav>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-heading">📊 สรุปภาพรวม</div>
-        <div class="sidebar-summary" id="sidebarSummary"></div>
-      </div>
     </aside>
 
     <main class="main">
@@ -73,50 +69,60 @@
         </div>
 
         <div class="kpi-grid" id="kpiGrid"></div>
-
-        <div class="employees-section">
-          <div class="section-header">
-            <h3><span>👥</span> พนักงานในสาขา <span class="hint">(📷 ใส่รูป · ✎ แก้ไข · "+ ยอดรายวัน")</span></h3>
-            <button type="button" class="btn-small" id="toggleEmpMgmt">⚙️ จัดการพนักงาน</button>
-          </div>
-          <div class="emp-panel" id="empPanel" style="display:none;">
-            <div class="emp-panel-title">เพิ่มพนักงานใหม่เข้าสาขา <span id="empBranchLabel">—</span></div>
-            <div class="emp-add-row">
-              <input type="text" id="newEmpName" placeholder="ชื่อพนักงาน" class="emp-input">
-              <select id="newEmpPosition" class="emp-input" style="flex:0 0 150px">
-                <option value="Personal Trainer">💪 Personal Trainer</option>
-                <option value="Sale">💼 Sale</option>
-              </select>
-              <button type="button" class="btn-add" id="addEmpBtn">+ เพิ่ม</button>
-            </div>
-            <div class="emp-panel-note">💡 คลิกปุ่ม ✎ บนการ์ดเพื่อแก้ไขชื่อ/ตำแหน่ง/รูปภาพ</div>
-          </div>
-          <div class="employees-grid" id="employeesGrid"></div>
-        </div>
-
-        <div class="card" style="margin-bottom:20px">
-          <h3><span>📊</span> กราฟยอดขายรายคน <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(ยอดขายรวม + Plan Setup แยกแสดง)</span></h3>
-          <div class="emp-charts-grid" id="empChartsGrid"></div>
-        </div>
+        <div id="branchEmpsContainer"></div>
       </div>
 
-      <!-- ====== INDIVIDUAL GRAPH VIEW ====== -->
-      <div id="individualView" style="display:none;">
+      <!-- ====== OVERVIEW VIEW ====== -->
+      <div id="overviewView" style="display:none;">
         <div class="main-title-row">
-          <h2 class="main-title">
-            <span>📊</span>
-            <span>กราฟยอดขายรายบุคคล — <span id="indivBranchName">—</span></span>
-          </h2>
+          <h2 class="main-title"><span>📊</span><span>ภาพรวมยอดขาย (ทุกสาขา)</span></h2>
+          <div class="filter-row">
+            <div class="date-range-group">
+              <label>📅 จาก:</label>
+              <input type="date" id="ovFrom">
+              <label>ถึง:</label>
+              <input type="date" id="ovTo">
+            </div>
+            <select id="ovPreset" class="search-box" style="min-width:140px">
+              <option value="">⚡ ช่วงด่วน</option>
+              <option value="today">วันนี้</option>
+              <option value="yesterday">เมื่อวาน</option>
+              <option value="week">7 วันล่าสุด</option>
+              <option value="month">เดือนนี้</option>
+              <option value="lastmonth">เดือนที่แล้ว</option>
+              <option value="all">ทั้งหมด</option>
+            </select>
+          </div>
         </div>
+        <div class="summary-range-badge" id="ovRangeBadge"></div>
+        <div class="kpi-grid" id="ovKpis"></div>
+        <div class="card"><h3><span>📈</span> ยอดขายรายวัน (แยก 3 หมวด)</h3><div class="chart-wrap" style="height:340px"><canvas id="ovDailyChart"></canvas></div></div>
+        <div class="card"><h3><span>🏢</span> เปรียบเทียบ 3 สาขา</h3><div class="chart-wrap" style="height:280px"><canvas id="ovBranchChart"></canvas></div></div>
+      </div>
 
+      <!-- ====== RECORD SALES VIEW (all employees across all branches) ====== -->
+      <div id="recordSalesView" style="display:none;">
+        <div class="main-title-row">
+          <h2 class="main-title"><span>📝</span><span>บันทึกยอดขายพนักงาน (ทุกสาขา)</span></h2>
+          <div style="font-size:12px;color:var(--gray-text)">กรอกยอดรายคน รายวัน แล้วกดบันทึกได้ทันที</div>
+        </div>
+        <div id="recordSalesContainer"></div>
+      </div>
+
+      <!-- ====== SUMMARY CHART VIEW (bar chart from เพิ่มยอดขาย data) ====== -->
+      <div id="summaryChartView" style="display:none;">
+        <div class="main-title-row">
+          <h2 class="main-title"><span>📊</span><span>กราฟสรุปยอดขาย (ทุกพนักงาน)</span></h2>
+          <div style="font-size:12px;color:var(--gray-text)">ดึงข้อมูลจาก "เพิ่มยอดขาย" รายวัน</div>
+        </div>
+        <div class="kpi-grid" id="scKpis"></div>
         <div class="card" style="margin-bottom:20px">
-          <h3><span>📊</span> เปรียบเทียบยอดขาย PT / MEMBER / Plan Setup (ทุกคนในสาขา)</h3>
-          <div class="chart-wrap" style="height:440px"><canvas id="indivChart"></canvas></div>
+          <h3><span>📊</span> เปรียบเทียบ PT / MEMBER / Plan Setup รายบุคคล (ทุกสาขา)</h3>
+          <div class="chart-wrap" style="height:480px"><canvas id="scGroupedChart"></canvas></div>
         </div>
-
         <div class="card">
           <h3><span>💰</span> ยอดรวมของแต่ละคน</h3>
-          <div class="chart-wrap" style="height:380px"><canvas id="indivTotalChart"></canvas></div>
+          <div class="chart-wrap" style="height:420px"><canvas id="scTotalChart"></canvas></div>
         </div>
       </div>
 
