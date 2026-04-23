@@ -1,0 +1,109 @@
+============================================================
+ STATION 24 — Manual Copy-Paste Commands
+============================================================
+
+ถ้าไฟล์ .bat ไม่ทำงาน ให้ทำดังนี้:
+
+============================================================
+ STEP 1: เปิด Command Prompt ที่โฟลเดอร์นี้
+============================================================
+
+วิธีที่ 1 (ง่ายสุด):
+  - เปิด File Explorer ไปที่ C:\Users\FITNESS\station24-dashboard
+  - กดที่ช่อง address bar ด้านบน (ที่แสดง path)
+  - พิมพ์ cmd แล้วกด Enter
+  - Command Prompt จะเปิดในโฟลเดอร์นี้อัตโนมัติ
+
+วิธีที่ 2:
+  - กด Windows + R
+  - พิมพ์ cmd แล้วกด Enter
+  - ใน Command Prompt พิมพ์:
+      cd /d C:\Users\FITNESS\station24-dashboard
+
+============================================================
+ STEP 2: ลบ .git เก่า (ถ้ามี)
+============================================================
+
+พิมพ์:
+  rmdir /s /q .git
+
+(ถ้าขึ้น error "The system cannot find the file" ก็ข้ามไปเลย)
+
+============================================================
+ STEP 3: รันคำสั่ง Git ทีละบรรทัด
+============================================================
+
+ก๊อปทีละบรรทัด วาง แล้วกด Enter
+(แทน YOURUSERNAME ด้วย GitHub username ของคุณ เช่น aofwara66)
+
+--- START ---
+
+git init -b main
+
+git config user.name "YOURUSERNAME"
+
+git config user.email "YOURUSERNAME@users.noreply.github.com"
+
+git add .
+
+git commit -m "Station 24 Fitness Dashboard"
+
+git remote add origin https://github.com/YOURUSERNAME/station24-dashboard.git
+
+git push -u origin main
+
+--- END ---
+
+============================================================
+ STEP 4: เมื่อถาม Username / Password
+============================================================
+
+Username: YOURUSERNAME (GitHub username)
+Password: *** วาง Personal Access Token ***
+         (ไม่ใช่รหัสผ่าน GitHub ธรรมดา — ใช้ไม่ได้แล้ว)
+
+สร้าง Token ที่: https://github.com/settings/tokens/new
+  - Note: station24-push
+  - Scope: ติ๊ก "repo" อย่างเดียวก็พอ
+  - กด Generate token
+  - ก๊อปเก็บทันที (เห็นครั้งเดียว!)
+
+============================================================
+ ต้องทำก่อน: สร้าง Repo บน GitHub
+============================================================
+
+1. เข้า https://github.com/new
+2. Repository name: station24-dashboard
+3. เลือก Public หรือ Private
+4. *** อย่าติ๊ก README / .gitignore / License ***
+5. กด "Create repository"
+
+============================================================
+ ครั้งต่อไป (แก้ไขแล้ว push ใหม่)
+============================================================
+
+cd /d C:\Users\FITNESS\station24-dashboard
+git add .
+git commit -m "update"
+git push
+
+============================================================
+ ปัญหาที่พบบ่อย
+============================================================
+
+❌ "repository not found"
+   → ยังไม่ได้สร้าง repo บน GitHub → ทำตาม STEP "สร้าง Repo" ด้านบน
+
+❌ "authentication failed"
+   → ใช้ Personal Access Token ไม่ใช่รหัสผ่าน
+   → สร้างใหม่ที่: https://github.com/settings/tokens
+
+❌ "updates were rejected"
+   → Repo มีไฟล์เก่าอยู่ (เช่น README ที่ GitHub สร้าง)
+   → รัน: git pull origin main --allow-unrelated-histories
+   → จากนั้น: git push
+
+❌ "bash: git: command not found"
+   → ติดตั้ง Git จาก https://git-scm.com/download/win
+
+============================================================
