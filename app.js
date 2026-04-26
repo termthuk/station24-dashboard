@@ -40,7 +40,6 @@ const SEED_DAILY = {
 const STORAGE_BRANCHES = 'station24_branches_v2';
 const STORAGE_DAILY = 'station24_daily_v1';
 const STORAGE_LOG = 'station24_sales_log_v1';
-const STORAGE_EMP_NOTES = 'station24_emp_notes_v1';
 const STORAGE_COLORS = 'station24_chart_colors_v1';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
@@ -63,20 +62,6 @@ function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); 
 function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
 function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
-function saveEmpNotes() { saveJSON(STORAGE_EMP_NOTES, EMP_NOTES); }
-function addEmpNote(bid, eid, text) {
-  EMP_NOTES.push({ id: 'N' + Date.now() + Math.random().toString(36).slice(2,7),
-    branchId: bid, empId: eid,
-    date: new Date().toISOString().slice(0,10), time: nowHHMM(),
-    text: String(text || '').trim() });
-  saveEmpNotes();
-}
-function getEmpNotes(eid) {
-  return EMP_NOTES.filter(n => n.empId === eid).sort((a,b) => {
-    if (a.date !== b.date) return b.date < a.date ? -1 : 1;
-    return (a.time || '') < (b.time || '') ? 1 : -1;
-  });
-}
 function nowHHMM() {
   const d = new Date(); const p = n => String(n).padStart(2,'0');
   return p(d.getHours()) + ':' + p(d.getMinutes());
@@ -91,15 +76,6 @@ function logSale(bid, eid, date, pt, m, pl) {
 let BRANCHES = loadJSON(STORAGE_BRANCHES, DEFAULT_BRANCHES);
 let DAILY    = loadJSON(STORAGE_DAILY, SEED_DAILY);
 let LOG      = loadJSON(STORAGE_LOG, []);
-let EMP_NOTES = loadJSON(STORAGE_EMP_NOTES, []);
-// Backfill: if any emp has legacy e.note text and no note records yet, seed one
-BRANCHES.forEach(b => b.employees.forEach(e => {
-  if (e.note && e.note.trim() && !EMP_NOTES.some(n => n.empId === e.id)) {
-    EMP_NOTES.push({ id: 'N0-' + e.id, branchId: b.id, empId: e.id,
-      date: new Date().toISOString().slice(0,10), time: '00:00', text: e.note.trim() });
-  }
-}));
-saveJSON(STORAGE_EMP_NOTES, EMP_NOTES);
 // One-time backfill: reconstruct LOG entries from any pre-existing DAILY data
 if (LOG.length === 0) {
   for (const bid in DAILY) {
@@ -185,7 +161,7 @@ function isEditor() { return currentUser && currentUser.role === 'editor'; }
 function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 
-BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; if (!('note' in e)) e.note = ''; }));
+BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
 BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
 
 let currentView = 'branch';
@@ -567,29 +543,7 @@ function renderBranchInline() {
         '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
         '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
         '</div>' +
-        (() => {
-          const notes = getEmpNotes(e.id);
-          const recent = notes.slice(0, 3);
-          const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-          const recentHtml = recent.length
-            ? '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">' +
-              recent.map(n => '<div style="display:flex;gap:6px;align-items:flex-start;background:#fff;border:1px solid #BFDBFE;border-radius:6px;padding:5px 8px">' +
-                '<span style="font-family:monospace;font-size:10px;color:#1E40AF;font-weight:700;flex-shrink:0">' + n.date.slice(5) + ' ' + (n.time || '') + '</span>' +
-                '<span style="font-size:11px;color:#1F1F1F;flex:1;word-break:break-word">' + escAttr(n.text) + '</span>' +
-                '<button type="button" class="inline-note-del" data-nid="' + n.id + '" title="ลบ" style="background:none;border:none;color:#991B1B;cursor:pointer;font-size:11px;line-height:1;padding:0">✕</button>' +
-                '</div>').join('') +
-              (notes.length > 3 ? '<div style="font-size:10px;color:var(--gray-text);text-align:center">+ อีก ' + (notes.length - 3) + ' รายการเก่ากว่านี้</div>' : '') +
-              '</div>'
-            : '';
-          return '<div style="margin-top:10px;padding:8px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">' +
-            '<div style="font-size:11px;font-weight:700;color:#1E40AF">📋 รายละเอียดการขาย <span style="color:var(--gray-text);font-weight:500">(' + notes.length + ')</span></div>' +
-            '<button type="button" class="inline-note-save" data-eid="' + e.id + '" data-bid="' + br.id + '" style="font-size:10px;padding:3px 10px;border:none;background:#2563EB;color:#fff;border-radius:5px;cursor:pointer;font-weight:700">+ เพิ่มข้อความ</button>' +
-            '</div>' +
-            '<textarea class="inline-note" data-eid="' + e.id + '" rows="2" placeholder="พิมพ์รายละเอียดใหม่ทุกครั้ง — แพคเกจ / ลูกค้า / โน้ต..." style="width:100%;padding:6px 8px;border:1px solid #BFDBFE;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;background:#fff;box-sizing:border-box"></textarea>' +
-            recentHtml +
-            '</div>';
-        })() + '</div>';
+        '</div>';
     };
 
     const ptEmps = br.employees.filter(e => (e.position || 'Sale') === 'Personal Trainer');
@@ -672,34 +626,6 @@ function renderBranchInline() {
     sel.onchange = () => {
       const emp = br.employees.find(x => x.id === sel.dataset.eid);
       if (emp) { emp.team = sel.value; saveBranches(); renderBranchView(); showToast('✓ ' + emp.name + ' → ทีม ' + sel.value); }
-    };
-  });
-
-  container.querySelectorAll('.inline-note-save').forEach(btn => {
-    btn.onclick = () => {
-      const eid = btn.dataset.eid;
-      const bid = btn.dataset.bid;
-      const ta = container.querySelector('.inline-note[data-eid="' + eid + '"]');
-      const emp = br.employees.find(x => x.id === eid);
-      if (!emp || !ta) return;
-      const text = (ta.value || '').trim();
-      if (!text) { showToast('⚠ กรุณาพิมพ์ข้อความ', true); return; }
-      addEmpNote(bid, eid, text);
-      ta.value = '';
-      renderBranchView();
-      showToast('✓ เพิ่มรายละเอียดของ ' + emp.name);
-    };
-  });
-
-  container.querySelectorAll('.inline-note-del').forEach(btn => {
-    btn.onclick = () => {
-      const nid = btn.dataset.nid;
-      const idx = EMP_NOTES.findIndex(n => n.id === nid);
-      if (idx < 0) return;
-      if (!confirm('ลบรายละเอียดนี้?')) return;
-      EMP_NOTES.splice(idx, 1); saveEmpNotes();
-      renderBranchView();
-      showToast('🗑 ลบรายละเอียด');
     };
   });
 
@@ -982,7 +908,6 @@ function openEditEmpModal(empId) {
   if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
   if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
   if(document.getElementById('editEmpTeam'))document.getElementById('editEmpTeam').value = e.team || 'A';
-  if(document.getElementById('editEmpNote'))document.getElementById('editEmpNote').value = '';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
 }
@@ -1003,13 +928,8 @@ function saveEditEmp() {
   const name = document.getElementById('editEmpName').value.trim();
   const pos = document.getElementById('editEmpPosition').value;
   const team = (document.getElementById('editEmpTeam') || {}).value || 'A';
-  const noteText = ((document.getElementById('editEmpNote') || {}).value || '').trim();
   if (!name) { showToast('⚠ กรุณาใส่ชื่อ', true); return; }
   e.name = name; e.position = pos; e.team = team; e.photo = editEmpPhotoBase64;
-  if (noteText) {
-    const empBranch = BRANCHES.find(b => b.employees.some(x => x.id === e.id));
-    if (empBranch) addEmpNote(empBranch.id, e.id, noteText);
-  }
   saveBranches(); closeEditEmpModal();
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
@@ -1871,14 +1791,12 @@ function hsCollectRows() {
     if (!br) return;
     const e = br.employees.find(x => x.id === en.empId) || {};
     const pt = +en.pt || 0, m = +en.member || 0, pl = +en.plan || 0;
-    const latestNote = (EMP_NOTES.filter(n => n.empId === en.empId && n.date <= en.date)
-      .sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (a.time || '') < (b.time || '') ? 1 : -1)[0] || {}).text || '';
     rows.push({
       logId: en.id, date: en.date, time: en.time || '',
       branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
       empId: en.empId, empName: e.name || en.empId,
       position: e.position || 'Sale', team: e.team || 'A',
-      photo: e.photo || '', note: latestNote,
+      photo: e.photo || '',
       pt: pt, member: m, plan: pl, total: pt + m + pl
     });
   });
@@ -1953,7 +1871,6 @@ function renderHistoryView() {
         '<th class="num">🎫 MEMBER</th>' +
         '<th class="num">📋 PLAN</th>' +
         '<th class="num">💰 รวม</th>' +
-        '<th>📋 รายละเอียดการขาย</th>' +
         '<th></th>' +
         '</tr></thead>' +
         '<tbody>' +
@@ -1965,10 +1882,6 @@ function renderHistoryView() {
           const av = x.photo
             ? '<img src="' + x.photo + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid ' + accent + '">'
             : '<div style="width:32px;height:32px;border-radius:50%;background:' + avatarColor(x.empId) + ';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">' + avatarInitials(x.empName) + '</div>';
-          const noteEsc = (x.note || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-          const noteCell = x.note
-            ? '<span title="' + noteEsc + '" style="display:inline-block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;color:#1E40AF;font-size:12px">' + noteEsc + '</span>'
-            : '<span style="color:var(--gray-text);font-size:11px">—</span>';
           return '<tr>' +
             '<td><strong>' + x.date + '</strong></td>' +
             '<td style="font-family:monospace;font-size:12px;color:var(--gray-text)">' + (x.time || '—') + '</td>' +
@@ -1980,7 +1893,6 @@ function renderHistoryView() {
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
-            '<td>' + noteCell + '</td>' +
             '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
             '</tr>';
         }).join('') +
@@ -1990,7 +1902,6 @@ function renderHistoryView() {
         '<td class="num">฿' + fmt0(sM) + '</td>' +
         '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
         '<td class="num">฿' + fmt0(sT) + '</td>' +
-        '<td></td>' +
         '<td></td>' +
         '</tr>' +
         '</tbody></table></div>';
