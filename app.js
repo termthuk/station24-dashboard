@@ -306,7 +306,6 @@ function renderEmpMiniCharts() {
 function renderBranchView() {
   renderSidebar();
   renderMainTitle();
-  renderKPIs();
   renderBranchInline();
 }
 
