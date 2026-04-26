@@ -477,7 +477,12 @@ function renderBranchInline() {
       const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
       const team = e.team || 'A';
       const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
-      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
+      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0};
+      const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
+      const todayTotal = todayPT + todayMEM + todayPLAN;
+      const todayBadge = todayTotal > 0
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
+        : '';
       return '<div class="emp-card" style="position:relative">' +
         '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
         '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
@@ -504,10 +509,11 @@ function renderBranchInline() {
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
         '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
-        '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
-        '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
+        todayBadge +
+        '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
+        '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
+        '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
+        '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
         '</div>' +
         '<div style="margin-top:10px;padding:8px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">' +
@@ -633,15 +639,21 @@ function renderBranchInline() {
       const bid = form.dataset.bid, eid = form.dataset.eid;
       const date = form.querySelector('.inline-date').value;
       if (!date) { showToast('⚠ เลือกวันที่', true); return; }
-      const pt = +form.querySelector('.inline-pt').value||0;
-      const m = +form.querySelector('.inline-member').value||0;
-      const pl = +form.querySelector('.inline-plan').value||0;
+      const pt = +form.querySelector('.inline-pt').value || 0;
+      const m  = +form.querySelector('.inline-member').value || 0;
+      const pl = +form.querySelector('.inline-plan').value || 0;
+      if (!pt && !m && !pl) { showToast('⚠ ยังไม่ได้กรอกยอด', true); return; }
       if (!DAILY[bid]) DAILY[bid] = {};
       if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
-      DAILY[bid][eid][date] = { pt: pt, member: m, plan: pl };
+      const prev = DAILY[bid][eid][date] || { pt: 0, member: 0, plan: 0 };
+      DAILY[bid][eid][date] = {
+        pt: (+prev.pt || 0) + pt,
+        member: (+prev.member || 0) + m,
+        plan: (+prev.plan || 0) + pl
+      };
       saveDaily();
       renderBranchView();
-      showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
+      showToast('✓ เพิ่มยอด ฿' + fmt0(pt + m + pl) + ' · ' + empName(eid) + ' (' + date + ')');
     };
   });
 }
