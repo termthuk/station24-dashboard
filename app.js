@@ -553,8 +553,7 @@ function renderRankingView() {
           '<div class="ranking-meta">' + posIcon + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
           '<div class="ranking-breakdown">' +
           '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
-          '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span>' +
-          '<span class="pln">📋 PLAN ฿' + fmt0(r.plan) + '</span></div>' +
+          '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%"></div></div>' +
           '</div>' +
           '<div class="ranking-total">฿' + fmt0(r.total) + '</div>' +
@@ -622,8 +621,7 @@ function renderRankingAllView() {
         '<div class="ranking-meta">' + posIcon + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
         '<div class="ranking-breakdown">' +
         '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
-        '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span>' +
-        '<span class="pln">📋 PLAN ฿' + fmt0(r.plan) + '</span></div>' +
+        '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
         '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%"></div></div>' +
         '</div>' +
         '<div class="ranking-total">฿' + fmt0(r.total) + '</div>' +
