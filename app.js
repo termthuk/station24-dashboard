@@ -133,7 +133,7 @@ function isEditor() { return currentUser && currentUser.role === 'editor'; }
 function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 
-BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
+BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; if (!('note' in e)) e.note = ''; }));
 BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
 
 let currentView = 'branch';
@@ -500,6 +500,13 @@ function renderBranchInline() {
         '<div class="emp-card-total">' +
         '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
+        '<div style="margin-top:8px;padding:8px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">' +
+        '<div style="font-size:11px;font-weight:700;color:#92400E">📝 Note</div>' +
+        '<button type="button" class="inline-note-save" data-eid="' + e.id + '" style="font-size:10px;padding:3px 10px;border:none;background:#F59E0B;color:#fff;border-radius:5px;cursor:pointer;font-weight:700">💾 บันทึก</button>' +
+        '</div>' +
+        '<textarea class="inline-note" data-eid="' + e.id + '" rows="2" placeholder="หมายเหตุ / นัดหมาย / สิ่งที่ต้องตามต่อ..." style="width:100%;padding:6px 8px;border:1px solid #FDE68A;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;background:#fff;box-sizing:border-box">' + (e.note || '').replace(/</g,'&lt;') + '</textarea>' +
+        '</div>' +
         '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
         '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
@@ -574,6 +581,18 @@ function renderBranchInline() {
     sel.onchange = () => {
       const emp = br.employees.find(x => x.id === sel.dataset.eid);
       if (emp) { emp.team = sel.value; saveBranches(); renderBranchView(); showToast('✓ ' + emp.name + ' → ทีม ' + sel.value); }
+    };
+  });
+
+  container.querySelectorAll('.inline-note-save').forEach(btn => {
+    btn.onclick = () => {
+      const eid = btn.dataset.eid;
+      const ta = container.querySelector('.inline-note[data-eid="' + eid + '"]');
+      const emp = br.employees.find(x => x.id === eid);
+      if (!emp || !ta) return;
+      emp.note = ta.value;
+      saveBranches();
+      showToast('✓ บันทึก note ของ ' + emp.name);
     };
   });
 
@@ -847,6 +866,7 @@ function openEditEmpModal(empId) {
   if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
   if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
   if(document.getElementById('editEmpTeam'))document.getElementById('editEmpTeam').value = e.team || 'A';
+  if(document.getElementById('editEmpNote'))document.getElementById('editEmpNote').value = e.note || '';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
 }
@@ -867,8 +887,9 @@ function saveEditEmp() {
   const name = document.getElementById('editEmpName').value.trim();
   const pos = document.getElementById('editEmpPosition').value;
   const team = (document.getElementById('editEmpTeam') || {}).value || 'A';
+  const note = (document.getElementById('editEmpNote') || {}).value || '';
   if (!name) { showToast('⚠ กรุณาใส่ชื่อ', true); return; }
-  e.name = name; e.position = pos; e.team = team; e.photo = editEmpPhotoBase64;
+  e.name = name; e.position = pos; e.team = team; e.note = note; e.photo = editEmpPhotoBase64;
   saveBranches(); closeEditEmpModal();
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
