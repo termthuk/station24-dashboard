@@ -334,16 +334,17 @@ function renderBranchInline() {
   if (!br.employees.length) {
     html += '<div class="empty-state">ยังไม่มีพนักงาน — กด "⚙️ จัดการพนักงาน" เพื่อเพิ่ม</div>';
   } else {
-    html += '<div class="employees-grid">' + br.employees.map(e => {
+    const renderEmpCard = e => {
       const t = empDailyTotals(br.id, e.id);
       const pos = e.position || 'Sale';
       const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
       const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
       return '<div class="emp-card" style="position:relative">' +
+        '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
         '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
         '<div class="emp-card-header">' + avatarHTML(e) +
         '<div class="emp-card-info">' +
-        '<div class="emp-card-name" style="padding-right:30px">' + e.name + '</div>' +
+        '<div class="emp-card-name" style="padding-right:60px">' + e.name + '</div>' +
         '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
         '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
@@ -363,7 +364,26 @@ function renderBranchInline() {
         '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
         '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
         '</div></div>';
-    }).join('') + '</div>';
+    };
+
+    const ptEmps = br.employees.filter(e => (e.position || 'Sale') === 'Personal Trainer');
+    const saleEmps = br.employees.filter(e => (e.position || 'Sale') === 'Sale');
+
+    const sectionHeader = (icon, label, count, color) =>
+      '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 12px;padding:10px 14px;background:' + color.bg + ';border-left:4px solid ' + color.bar + ';border-radius:8px">' +
+      '<span style="font-size:18px">' + icon + '</span>' +
+      '<span style="font-size:14px;font-weight:800;color:' + color.text + '">' + label + '</span>' +
+      '<span style="font-size:11px;font-weight:700;color:' + color.text + ';background:#fff;padding:3px 10px;border-radius:999px">' + count + ' คน</span>' +
+      '</div>';
+
+    if (ptEmps.length) {
+      html += sectionHeader('💪', 'Personal Trainer', ptEmps.length, { bg:'#FEF2F2', bar:'#DC2626', text:'#991B1B' });
+      html += '<div class="employees-grid" style="margin-bottom:18px">' + ptEmps.map(renderEmpCard).join('') + '</div>';
+    }
+    if (saleEmps.length) {
+      html += sectionHeader('💼', 'Sale', saleEmps.length, { bg:'#EFF6FF', bar:'#2563EB', text:'#1E3A8A' });
+      html += '<div class="employees-grid">' + saleEmps.map(renderEmpCard).join('') + '</div>';
+    }
   }
 
   html += '</div>';
@@ -401,6 +421,10 @@ function renderBranchInline() {
       const emp = br.employees.find(x => x.id === sel.dataset.eid);
       if (emp) { emp.position = sel.value; saveBranches(); renderBranchView(); showToast('✓ อัปเดตตำแหน่ง ' + emp.name); }
     };
+  });
+
+  container.querySelectorAll('[data-emp-edit]').forEach(btn => {
+    btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.empEdit); };
   });
 
   container.querySelectorAll('[data-emp-del]').forEach(btn => {
@@ -509,7 +533,7 @@ function renderRankingView() {
         const av = r.emp.photo
           ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
           : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
-        return '<div class="ranking-row ' + rankClass + '">' +
+        return '<div class="ranking-row ' + rankClass + '" style="position:relative">' +
           '<div class="ranking-rank-badge">' + medal + '</div>' + av +
           '<div class="ranking-info">' +
           '<div class="ranking-name">' + r.emp.name + '</div>' +
@@ -520,7 +544,9 @@ function renderRankingView() {
           '<span class="pln">📋 PLAN ฿' + fmt0(r.plan) + '</span></div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%"></div></div>' +
           '</div>' +
-          '<div class="ranking-total">฿' + fmt0(r.total) + '</div></div>';
+          '<div class="ranking-total">฿' + fmt0(r.total) + '</div>' +
+          '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' +
+          '</div>';
       }).join('');
     }
     return '<div class="ranking-branch-card">' +
@@ -529,6 +555,10 @@ function renderRankingView() {
       '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
+
+  container.querySelectorAll('[data-rank-edit]').forEach(btn => {
+    btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
+  });
 }
 
 function openDailyModal(empId) {
