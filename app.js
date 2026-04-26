@@ -154,6 +154,7 @@ function setView(v) {
   if(document.getElementById('summaryChartView'))document.getElementById('summaryChartView').style.display = v === 'summarychart' ? 'block' : 'none';
   if(document.getElementById('historyView'))document.getElementById('historyView').style.display = v === 'history' ? 'block' : 'none';
   if(document.getElementById('rankingView'))document.getElementById('rankingView').style.display = v === 'ranking' ? 'block' : 'none';
+  if(document.getElementById('rankingAllView'))document.getElementById('rankingAllView').style.display = v === 'rankingall' ? 'block' : 'none';
   if(document.getElementById('branchListSection'))document.getElementById('branchListSection').style.display = 'block';
   renderMenuNav();
   if (v === 'branch') renderBranchView();
@@ -162,6 +163,7 @@ function setView(v) {
   else if (v === 'summarychart') renderSummaryChartView();
   else if (v === 'history') renderHistoryView();
   else if (v === 'ranking') renderRankingView();
+  else if (v === 'rankingall') renderRankingAllView();
 }
 
 function renderMenuNav() {
@@ -169,7 +171,8 @@ function renderMenuNav() {
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>';
+    '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
+    '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับยอดขาย (รวมทุกสาขา)</span></button>';
   document.querySelectorAll('#menuNav .menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
 }
 
@@ -555,6 +558,72 @@ function renderRankingView() {
       '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
+
+  container.querySelectorAll('[data-rank-edit]').forEach(btn => {
+    btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
+  });
+}
+
+function renderRankingAllView() {
+  renderSidebar();
+  const container = document.getElementById('rankingAllContainer');
+  if (!container) return;
+
+  const all = [];
+  BRANCHES.forEach(br => br.employees.forEach(e => {
+    const t = empDailyTotals(br.id, e.id);
+    all.push({ branch: br, emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.total });
+  }));
+  all.sort((a, b) => b.total - a.total);
+
+  const grandTotal = all.reduce((s, r) => s + r.total, 0);
+  const maxTotal = Math.max(...all.map(r => r.total), 1);
+  const ptCount = all.filter(r => (r.emp.position || 'Sale') === 'Personal Trainer').length;
+  const saleCount = all.length - ptCount;
+
+  let html = '<div class="kpi-grid" style="margin-bottom:18px">' +
+    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(grandTotal) + '</div><div class="kpi-sub">ทุกสาขา ทุกคน</div></div>' +
+    '<div class="kpi-card pt"><div class="kpi-icon">👥</div><div class="kpi-label">พนักงานทั้งหมด</div><div class="kpi-value">' + all.length + '</div><div class="kpi-sub">PT ' + ptCount + ' · Sale ' + saleCount + '</div></div>' +
+    '<div class="kpi-card member"><div class="kpi-icon">🏢</div><div class="kpi-label">จำนวนสาขา</div><div class="kpi-value">' + BRANCHES.length + '</div><div class="kpi-sub">รวมทั้งหมด</div></div>' +
+    '<div class="kpi-card plan"><div class="kpi-icon">🥇</div><div class="kpi-label">ยอดสูงสุด</div><div class="kpi-value">฿' + fmt0(all[0] ? all[0].total : 0) + '</div><div class="kpi-sub">' + (all[0] ? all[0].emp.name : '—') + '</div></div>' +
+    '</div>';
+
+  html += '<div class="ranking-branch-card"><div class="ranking-branch-header">' +
+    '<div class="ranking-branch-title"><span class="emoji">🏅</span><span>อันดับรวมทุกสาขา</span></div>' +
+    '<div class="ranking-branch-total">' + all.length + ' คน · ฿' + fmt0(grandTotal) + '</div>' +
+    '</div><div class="ranking-list">';
+
+  if (!all.length) {
+    html += '<div class="ranking-empty">ยังไม่มีพนักงาน</div>';
+  } else {
+    html += all.map((r, i) => {
+      const rankClass = i < 3 && r.total > 0 ? 'r' + (i+1) : '';
+      const medal = i === 0 && r.total > 0 ? '🥇' : i === 1 && r.total > 0 ? '🥈' : i === 2 && r.total > 0 ? '🥉' : '#' + (i+1);
+      const pct = maxTotal ? Math.round(r.total / maxTotal * 100) : 0;
+      const pos = r.emp.position || 'Sale';
+      const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
+      const av = r.emp.photo
+        ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
+        : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
+      return '<div class="ranking-row ' + rankClass + '" style="position:relative">' +
+        '<div class="ranking-rank-badge">' + medal + '</div>' + av +
+        '<div class="ranking-info">' +
+        '<div class="ranking-name">' + r.emp.name + ' <span style="font-size:11px;font-weight:600;color:var(--gray-text);margin-left:4px">' + r.branch.emoji + ' ' + r.branch.name + '</span></div>' +
+        '<div class="ranking-meta">' + posIcon + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
+        '<div class="ranking-breakdown">' +
+        '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
+        '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span>' +
+        '<span class="pln">📋 PLAN ฿' + fmt0(r.plan) + '</span></div>' +
+        '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%"></div></div>' +
+        '</div>' +
+        '<div class="ranking-total">฿' + fmt0(r.total) + '</div>' +
+        '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' +
+        '</div>';
+    }).join('');
+  }
+  html += '</div></div>';
+
+  container.innerHTML = html;
 
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
