@@ -368,8 +368,8 @@ function renderBranchInline() {
         '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(t.member) + '</div></div>' +
         '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(t.plan) + '</div></div></div>' +
         '<div class="emp-card-total">' +
-        '<span class="emp-card-total-label">รวม ' + t.days + ' วัน</span>' +
-        '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
+        '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
+        '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
         '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
         '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
