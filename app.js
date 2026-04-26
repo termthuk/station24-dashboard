@@ -551,7 +551,7 @@ function renderRankingView() {
   container.innerHTML = BRANCHES.map(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
-      return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.total };
+      return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member };
     }).sort((a, b) => b.total - a.total);
     const branchTotal = emps.reduce((s, r) => s + r.total, 0);
     const maxEmpTotal = Math.max(...emps.map(r => r.total), 1);
@@ -603,7 +603,7 @@ function renderRankingAllView() {
   const all = [];
   BRANCHES.forEach(br => br.employees.forEach(e => {
     const t = empDailyTotals(br.id, e.id);
-    all.push({ branch: br, emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.total });
+    all.push({ branch: br, emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member });
   }));
   all.sort((a, b) => b.total - a.total);
 
