@@ -960,6 +960,23 @@ function renderSummaryChartView() {
     '<div class="chart-wrap" style="height:' + Math.max(160, BRANCHES.length * 56) + 'px"><canvas id="scBranchCompareTotal"></canvas></div>' +
     '</div>';
 
+  // All-employees combined chart (across branches, color-coded by branch)
+  const allEmpsCount = BRANCHES.reduce((n, b) => n + b.employees.length, 0);
+  if (allEmpsCount) {
+    html += '<div class="card" style="margin-bottom:20px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
+      '<h3 style="margin:0;border:none;padding:0"><span>🏆</span> ยอดขายพนักงานทั้งหมด (รวมทุกสาขา)</h3>' +
+      '<div style="display:flex;gap:6px">' +
+      '<button type="button" class="sc-save-btn" data-bid="__allemp__" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
+      '<button type="button" class="sc-save-btn" data-bid="__allemp__" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
+      '</div></div>' +
+      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">💰 ยอดรวมรายบุคคล (เรียงมาก → น้อย, สีแยกตามสาขา)</div>' +
+      '<div class="chart-wrap" style="height:' + Math.max(220, allEmpsCount * 30) + 'px"><canvas id="scAllEmpTotal"></canvas></div>' +
+      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:10px;border-top:1px dashed var(--gray-line)">📊 แยก 3 หมวด (PT / MEMBER / PLAN) รายบุคคล</div>' +
+      '<div class="chart-wrap" style="height:' + Math.max(260, allEmpsCount * 28) + 'px"><canvas id="scAllEmpGrouped"></canvas></div>' +
+      '</div>';
+  }
+
   // Color customizer
   html += '<div class="card" style="margin-bottom:16px;padding:12px 16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
@@ -1067,6 +1084,71 @@ function renderSummaryChartView() {
     });
   }
 
+  // All employees combined chart (across branches)
+  const branchPalette = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777', '#0891B2', '#65A30D'];
+  const branchColorOf = {};
+  BRANCHES.forEach((b, i) => { branchColorOf[b.id] = branchPalette[i % branchPalette.length]; });
+  const allEmps = [];
+  BRANCHES.forEach(b => b.employees.forEach(e => {
+    const t = empDailyTotals(b.id, e.id);
+    allEmps.push({ branch: b, emp: e, ...t });
+  }));
+  allEmps.sort((a, b) => b.total - a.total);
+
+  const allTCtx = document.getElementById('scAllEmpTotal');
+  if (allTCtx && allEmps.length) {
+    const labels = allEmps.map(x => x.emp.name + ' · ' + x.branch.emoji + x.branch.name);
+    const totals = allEmps.map(x => x.total);
+    const colors = allEmps.map(x => branchColorOf[x.branch.id]);
+    scBranchCharts['allemp_total'] = new Chart(allTCtx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [
+        { label: '💰 ยอดรวม', data: totals, backgroundColor: colors, borderRadius: 5, barThickness: 18 }
+      ]},
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        plugins: {
+          legend: {
+            display: true, position: 'top', labels: {
+              boxWidth: 14, padding: 10, font: { size: 11, weight: 600 },
+              generateLabels: () => BRANCHES.map(b => ({
+                text: b.emoji + ' ' + b.name, fillStyle: branchColorOf[b.id],
+                strokeStyle: branchColorOf[b.id], lineWidth: 0
+              }))
+            }
+          },
+          tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
+          y: { ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  const allGCtx = document.getElementById('scAllEmpGrouped');
+  if (allGCtx && allEmps.length) {
+    const labels = allEmps.map(x => x.emp.name + ' · ' + x.branch.emoji + x.branch.name);
+    scBranchCharts['allemp_grouped'] = new Chart(allGCtx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [
+        { label: '💪 PT', data: allEmps.map(x => x.pt), backgroundColor: CHART_COLORS.pt, borderRadius: 4, barThickness: 8 },
+        { label: '🎫 MEMBER', data: allEmps.map(x => x.member), backgroundColor: CHART_COLORS.member, borderRadius: 4, barThickness: 8 },
+        { label: '📋 PLAN', data: allEmps.map(x => x.plan), backgroundColor: CHART_COLORS.plan, borderRadius: 4, barThickness: 8 }
+      ]},
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        plugins: { legend: { position: 'top', labels: { padding: 10, font: { size: 11, weight: 600 } } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
+          y: { ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
   BRANCHES.forEach(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
@@ -1138,6 +1220,7 @@ function renderSummaryChartView() {
     Object.keys(scBranchCharts).forEach(k => {
       const ch = scBranchCharts[k];
       if (!ch || !ch.data || !ch.data.datasets) return;
+      if (k === 'allemp_total') return;
       if (k.startsWith('t_') || k === 'cmp_total') {
         const ds = ch.data.datasets[0];
         if (ds && Array.isArray(ds.data)) {
@@ -1319,16 +1402,22 @@ function exportToExcel() {
 // ===== saveBranchChart (for Summary view) =====
 function saveBranchChart(branchId, fmt, silent) {
   const isCompare = branchId === '__compare__';
-  const chart = isCompare ? scBranchCharts['cmp_grouped'] : scBranchCharts['g_' + branchId];
-  const chartT = isCompare ? scBranchCharts['cmp_total'] : scBranchCharts['t_' + branchId];
-  const br = isCompare ? null : getBranch(branchId);
-  if (!chart || (!isCompare && !br)) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
+  const isAllEmp = branchId === '__allemp__';
+  const isSpecial = isCompare || isAllEmp;
+  const chart = isCompare ? scBranchCharts['cmp_grouped']
+              : isAllEmp ? scBranchCharts['allemp_total']
+              : scBranchCharts['g_' + branchId];
+  const chartT = isCompare ? scBranchCharts['cmp_total']
+               : isAllEmp ? scBranchCharts['allemp_grouped']
+               : scBranchCharts['t_' + branchId];
+  const br = isSpecial ? null : getBranch(branchId);
+  if (!chart || (!isSpecial && !br)) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
   const src = chart.canvas;
   if (!src || !src.width || !src.height) { if (!silent) showToast('⚠ กราฟว่าง', true); return false; }
   const srcT = chartT ? chartT.canvas : null;
 
   let bt;
-  if (isCompare) {
+  if (isSpecial) {
     let p=0,m=0,pl=0;
     BRANCHES.forEach(b => { const t = branchDailyTotals(b.id); p+=t.pt; m+=t.member; pl+=t.plan; });
     bt = { pt:p, member:m, plan:pl, total:p+m+pl };
@@ -1357,7 +1446,10 @@ function saveBranchChart(branchId, fmt, silent) {
 
   ctx.fillStyle = '#DC2626';
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText(isCompare ? '🏢  เปรียบเทียบยอดแต่ละสาขา' : (br.emoji + '  สาขา' + br.name), pad, 52);
+  const headerLabel = isCompare ? '🏢  เปรียบเทียบยอดแต่ละสาขา'
+                    : isAllEmp ? '🏆  ยอดขายพนักงานทั้งหมด (รวมทุกสาขา)'
+                    : (br.emoji + '  สาขา' + br.name);
+  ctx.fillText(headerLabel, pad, 52);
 
   ctx.fillStyle = '#4B5563';
   ctx.font = '13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
@@ -1370,7 +1462,10 @@ function saveBranchChart(branchId, fmt, silent) {
     const yLabel = headerH + src.height + sectionGap - 4;
     ctx.fillStyle = '#0F0F0F';
     ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-    ctx.fillText(isCompare ? '💰 ยอดรวมรายสาขา' : '💰 ยอดรวมรายบุคคล', pad, yLabel);
+    const subLabel = isCompare ? '💰 ยอดรวมรายสาขา'
+                   : isAllEmp ? '📊 แยก 3 หมวด (PT / MEMBER / PLAN) รายบุคคล'
+                   : '💰 ยอดรวมรายบุคคล';
+    ctx.fillText(subLabel, pad, yLabel);
     const cxT = Math.round((W - srcT.width) / 2);
     ctx.drawImage(srcT, cxT, yLabel + labelH);
   }
@@ -1388,7 +1483,7 @@ function saveBranchChart(branchId, fmt, silent) {
   const dataURL = out.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
   const a = document.createElement('a');
   a.href = dataURL;
-  const fname = isCompare ? 'เปรียบเทียบสาขา' : br.name;
+  const fname = isCompare ? 'เปรียบเทียบสาขา' : isAllEmp ? 'พนักงานทั้งหมด' : br.name;
   a.download = 'Station24_Chart_' + fname + '_' + new Date().toISOString().slice(0,10) + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   if (!silent) showToast('✓ ดาวน์โหลด ' + fname + '.' + ext);
