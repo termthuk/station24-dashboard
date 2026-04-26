@@ -98,7 +98,7 @@ function branchColor(bid) {
 function setBranchColor(bid, hex) { BRANCH_COLORS[bid] = hex; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
 function resetBranchColors() { BRANCH_COLORS = {}; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
 
-BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; }));
+BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
 BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
 
 let currentView = 'branch';
@@ -373,6 +373,8 @@ function renderBranchInline() {
       const t = empDailyTotals(br.id, e.id);
       const pos = e.position || 'Sale';
       const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
+      const team = e.team || 'A';
+      const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
       const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
       return '<div class="emp-card" style="position:relative">' +
         '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
@@ -380,10 +382,16 @@ function renderBranchInline() {
         '<div class="emp-card-header">' + avatarHTML(e) +
         '<div class="emp-card-info">' +
         '<div class="emp-card-name" style="padding-right:60px">' + e.name + '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
         '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
         '</select>' +
+        '<select class="inline-team-select" data-eid="' + e.id + '" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--gray-line);background:' + teamColor.bg + ';color:' + teamColor.text + ';cursor:pointer">' +
+        '<option value="A"' + (team==='A'?' selected':'') + '>🅰 ทีม A</option>' +
+        '<option value="B"' + (team==='B'?' selected':'') + '>🅱 ทีม B</option>' +
+        '</select>' +
+        '</div>' +
         '<div class="emp-card-id">' + e.id + '</div></div></div>' +
         '<div class="emp-card-categories">' +
         '<div class="emp-cat pt"><div class="emp-cat-label">💪 PT</div><div class="emp-cat-value">฿' + fmtShort(t.pt) + '</div></div>' +
@@ -442,7 +450,7 @@ function renderBranchInline() {
       const position = document.getElementById('newEmpPosInline').value;
       if (!name) { input.focus(); return; }
       if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
-      br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
+      br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '', team: 'A' });
       saveBranches();
       renderBranchView();
       showToast('✓ เพิ่ม ' + name);
@@ -460,6 +468,13 @@ function renderBranchInline() {
 
   container.querySelectorAll('[data-emp-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.empEdit); };
+  });
+
+  container.querySelectorAll('.inline-team-select').forEach(sel => {
+    sel.onchange = () => {
+      const emp = br.employees.find(x => x.id === sel.dataset.eid);
+      if (emp) { emp.team = sel.value; saveBranches(); renderBranchView(); showToast('✓ ' + emp.name + ' → ทีม ' + sel.value); }
+    };
   });
 
   container.querySelectorAll('[data-emp-del]').forEach(btn => {
@@ -731,6 +746,7 @@ function openEditEmpModal(empId) {
   if(document.getElementById('editEmpSubtitle'))document.getElementById('editEmpSubtitle').textContent = e.name + ' · ' + e.id;
   if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
   if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
+  if(document.getElementById('editEmpTeam'))document.getElementById('editEmpTeam').value = e.team || 'A';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
 }
@@ -750,12 +766,15 @@ function saveEditEmp() {
   const e = empById(activeEditEmp); if (!e) return;
   const name = document.getElementById('editEmpName').value.trim();
   const pos = document.getElementById('editEmpPosition').value;
+  const team = (document.getElementById('editEmpTeam') || {}).value || 'A';
   if (!name) { showToast('⚠ กรุณาใส่ชื่อ', true); return; }
-  e.name = name; e.position = pos; e.photo = editEmpPhotoBase64;
+  e.name = name; e.position = pos; e.team = team; e.photo = editEmpPhotoBase64;
   saveBranches(); closeEditEmpModal();
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
   else if (currentView === 'ranking') renderRankingView();
+  else if (currentView === 'rankingall') renderRankingAllView();
+  else if (currentView === 'summarychart') renderSummaryChartView();
   showToast('✓ อัปเดต ' + name);
 }
 
@@ -793,7 +812,7 @@ function addEmployee() {
   if (!name) { input.focus(); return; }
   const br = getBranch(activeBranch);
   if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
-  br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
+  br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '', team: 'A' });
   saveBranches(); input.value = ''; renderBranchView(); showToast('✓ เพิ่ม ' + name);
 }
 document.getElementById('addEmpBtn')?.addEventListener('click', addEmployee);
@@ -1176,85 +1195,108 @@ function renderSummaryChartView() {
       '<div style="display:flex;gap:6px">' +
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
-      '</div></div>' +
-      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">📊 ยอดแยก 3 หมวด (PT / MEMBER / PLAN) รายคน</div>' +
-      '<div class="chart-wrap" style="height:320px;margin-bottom:14px"><canvas id="scGrouped_' + br.id + '"></canvas></div>' +
-      '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:10px;border-top:1px dashed var(--gray-line)">💰 ยอดรวมรายบุคคล (เรียงมาก → น้อย)</div>' +
-      '<div class="chart-wrap" style="height:' + Math.max(160, br.employees.length * 46) + 'px"><canvas id="scTotal_' + br.id + '"></canvas></div>' +
-      '</div>';
+      '</div></div>';
+
+    ['A', 'B'].forEach(team => {
+      const teamEmpsCount = br.employees.filter(e => (e.team || 'A') === team).length;
+      const teamColor = team === 'A' ? { bg:'#FEF3C7', border:'#F59E0B', text:'#92400E', icon:'🅰' } : { bg:'#DBEAFE', border:'#2563EB', text:'#1E40AF', icon:'🅱' };
+      html += '<div style="margin-bottom:18px;border:1px solid ' + teamColor.border + ';border-radius:12px;overflow:hidden">' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:' + teamColor.bg + ';border-bottom:1px solid ' + teamColor.border + '">' +
+        '<span style="font-size:16px">' + teamColor.icon + '</span>' +
+        '<span style="font-size:13px;font-weight:800;color:' + teamColor.text + '">ทีม ' + team + '</span>' +
+        '<span style="font-size:11px;font-weight:700;color:' + teamColor.text + ';background:#fff;padding:2px 10px;border-radius:999px">' + teamEmpsCount + ' คน</span>' +
+        '</div>' +
+        '<div style="padding:12px 14px">' +
+        (teamEmpsCount === 0
+          ? '<div style="text-align:center;padding:24px;color:var(--gray-text);font-size:12px">— ไม่มีพนักงานในทีมนี้ —</div>'
+          : '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">📊 ยอดแยก 3 หมวด (PT / MEMBER / PLAN) รายคน</div>' +
+            '<div class="chart-wrap" style="height:280px;margin-bottom:12px"><canvas id="scGrouped_' + br.id + '_' + team + '"></canvas></div>' +
+            '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:8px;border-top:1px dashed var(--gray-line)">💰 ยอดรวมรายบุคคล (เรียงมาก → น้อย)</div>' +
+            '<div class="chart-wrap" style="height:' + Math.max(140, teamEmpsCount * 42) + 'px"><canvas id="scTotal_' + br.id + '_' + team + '"></canvas></div>'
+        ) +
+        '</div></div>';
+    });
+
+    html += '</div>';
   });
 
   container.innerHTML = html;
 
   BRANCHES.forEach(br => {
-    const emps = br.employees.map(e => {
-      const t = empDailyTotals(br.id, e.id);
-      return { emp: e, ...t };
-    }).sort((a, b) => b.total - a.total);
+    ['A', 'B'].forEach(team => {
+      const emps = br.employees
+        .filter(e => (e.team || 'A') === team)
+        .map(e => {
+          const t = empDailyTotals(br.id, e.id);
+          return { emp: e, ...t };
+        }).sort((a, b) => b.total - a.total);
 
-    const labels = emps.map(x => x.emp.name);
-    const pt  = emps.map(x => x.pt);
-    const mem = emps.map(x => x.member);
-    const pln = emps.map(x => x.plan);
+      if (!emps.length) return;
 
-    const grouped = document.getElementById('scGrouped_' + br.id);
-    if (grouped && emps.length) {
-      scBranchCharts['g_' + br.id] = new Chart(grouped, {
-        type: 'bar',
-        data: { labels: labels, datasets: [
-          { label: '💪 PT', data: pt, backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
-          { label: '🎫 MEMBER', data: mem, backgroundColor: CHART_COLORS.member, borderRadius: 4 },
-          { label: '📋 PLAN', data: pln, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
-        ]},
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-          layout: { padding: { top: 22 } },
-          plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, weight: 600 } } },
-            tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
-            datalabels: {
-              display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
-              anchor: 'end', align: 'end', offset: 2,
-              color: '#1F1F1F', font: { size: 9, weight: 700 },
-              formatter: v => '฿' + fmtShort(v)
+      const labels = emps.map(x => x.emp.name);
+      const pt  = emps.map(x => x.pt);
+      const mem = emps.map(x => x.member);
+      const pln = emps.map(x => x.plan);
+
+      const grouped = document.getElementById('scGrouped_' + br.id + '_' + team);
+      if (grouped) {
+        scBranchCharts['g_' + br.id + '_' + team] = new Chart(grouped, {
+          type: 'bar',
+          data: { labels: labels, datasets: [
+            { label: '💪 PT', data: pt, backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
+            { label: '🎫 MEMBER', data: mem, backgroundColor: CHART_COLORS.member, borderRadius: 4 },
+            { label: '📋 PLAN', data: pln, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
+          ]},
+          options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+            layout: { padding: { top: 22 } },
+            plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, weight: 600 } } },
+              tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
+              datalabels: {
+                display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                anchor: 'end', align: 'end', offset: 2,
+                color: '#1F1F1F', font: { size: 9, weight: 700 },
+                formatter: v => '฿' + fmtShort(v)
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
+              y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
             }
-          },
-          scales: {
-            x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
-            y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
           }
-        }
-      });
-    }
+        });
+      }
 
-    const totals = emps.map(x => x.total);
-    const maxT = Math.max(...totals, 0);
-    const totalCtx = document.getElementById('scTotal_' + br.id);
-    if (totalCtx && emps.length) {
-      scBranchCharts['t_' + br.id] = new Chart(totalCtx, {
-        type: 'bar',
-        data: { labels: labels, datasets: [
-          { label: '💰 ยอดรวม', data: totals,
-            backgroundColor: totals.map(v => v === maxT && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member),
-            borderRadius: 6, barThickness: 26 }
-        ]},
-        options: {
-          indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-          layout: { padding: { right: 56 } },
-          plugins: { legend: { display: false },
-            tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } },
-            datalabels: {
-              display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
-              anchor: 'end', align: 'right', offset: 6,
-              color: '#1F1F1F', font: { size: 11, weight: 700 },
-              formatter: v => '฿' + fmt0(v)
+      const totals = emps.map(x => x.total);
+      const maxT = Math.max(...totals, 0);
+      const totalCtx = document.getElementById('scTotal_' + br.id + '_' + team);
+      if (totalCtx) {
+        scBranchCharts['t_' + br.id + '_' + team] = new Chart(totalCtx, {
+          type: 'bar',
+          data: { labels: labels, datasets: [
+            { label: '💰 ยอดรวม', data: totals,
+              backgroundColor: totals.map(v => v === maxT && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member),
+              borderRadius: 6, barThickness: 24 }
+          ]},
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+            layout: { padding: { right: 56 } },
+            plugins: { legend: { display: false },
+              tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } },
+              datalabels: {
+                display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                anchor: 'end', align: 'right', offset: 6,
+                color: '#1F1F1F', font: { size: 11, weight: 700 },
+                formatter: v => '฿' + fmt0(v)
+              }
+            },
+            scales: {
+              x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
+              y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 11 } }, grid: { display: false } }
             }
-          },
-          scales: {
-            x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
-            y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 11 } }, grid: { display: false } }
           }
-        }
-      });
-    }
+        });
+      }
+    });
   });
 
   container.querySelectorAll('.sc-save-btn').forEach(btn => {
@@ -1453,23 +1495,33 @@ function exportToExcel() {
 
 // ===== saveBranchChart (for Summary view) =====
 function saveBranchChart(branchId, fmt, silent) {
-  const chart = scBranchCharts['g_' + branchId];
-  const chartT = scBranchCharts['t_' + branchId];
   const br = getBranch(branchId);
-  if (!chart || !br) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
-  const src = chart.canvas;
-  if (!src || !src.width || !src.height) { if (!silent) showToast('⚠ กราฟว่าง', true); return false; }
-  const srcT = chartT ? chartT.canvas : null;
+  if (!br) { if (!silent) showToast('⚠ ไม่พบสาขา', true); return false; }
 
-  const bt = branchDailyTotals(branchId);
+  const sections = [];
+  ['A', 'B'].forEach(team => {
+    const g = scBranchCharts['g_' + branchId + '_' + team];
+    const t = scBranchCharts['t_' + branchId + '_' + team];
+    const gC = g && g.canvas && g.canvas.width ? g.canvas : null;
+    const tC = t && t.canvas && t.canvas.width ? t.canvas : null;
+    if (gC || tC) sections.push({ team: team, grouped: gC, total: tC });
+  });
+  if (!sections.length) { if (!silent) showToast('⚠ ไม่มีกราฟ', true); return false; }
+
   const headerH = 110;
   const footerH = 40;
   const pad = 20;
-  const sectionGap = 30;
+  const sectionGap = 24;
   const labelH = 22;
-  const srcTH = (srcT && srcT.width && srcT.height) ? srcT.height : 0;
-  const W = Math.max(src.width, srcT ? srcT.width : 0, 900);
-  const H = src.height + (srcTH ? (labelH + srcTH + sectionGap) : 0) + headerH + footerH;
+  const teamHeaderH = 36;
+  const W = Math.max(900, ...sections.flatMap(s => [s.grouped ? s.grouped.width : 0, s.total ? s.total.width : 0]));
+
+  let H = headerH + footerH;
+  sections.forEach(s => {
+    H += teamHeaderH;
+    if (s.grouped) H += s.grouped.height + sectionGap;
+    if (s.total) H += labelH + s.total.height + sectionGap;
+  });
 
   const out = document.createElement('canvas');
   out.width = W; out.height = H;
@@ -1486,21 +1538,31 @@ function saveBranchChart(branchId, fmt, silent) {
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
   ctx.fillText(br.emoji + '  สาขา' + br.name, pad, 52);
 
+  const bt = branchDailyTotals(branchId);
   ctx.fillStyle = '#4B5563';
   ctx.font = '13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
   ctx.fillText('PT ฿' + fmt0(bt.pt) + '   MEMBER ฿' + fmt0(bt.member) + '   PLAN ฿' + fmt0(bt.plan) + '   รวม ฿' + fmt0(bt.total), pad, 80);
 
-  const cx = Math.round((W - src.width) / 2);
-  ctx.drawImage(src, cx, headerH);
-
-  if (srcT && srcTH) {
-    const yLabel = headerH + src.height + sectionGap - 4;
-    ctx.fillStyle = '#0F0F0F';
-    ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-    ctx.fillText('💰 ยอดรวมรายบุคคล', pad, yLabel);
-    const cxT = Math.round((W - srcT.width) / 2);
-    ctx.drawImage(srcT, cxT, yLabel + labelH);
-  }
+  let y = headerH;
+  sections.forEach(s => {
+    ctx.fillStyle = s.team === 'A' ? '#92400E' : '#1E40AF';
+    ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+    ctx.fillText((s.team === 'A' ? '🅰' : '🅱') + '  ทีม ' + s.team, pad, y + 6);
+    y += teamHeaderH;
+    if (s.grouped) {
+      const cx = Math.round((W - s.grouped.width) / 2);
+      ctx.drawImage(s.grouped, cx, y);
+      y += s.grouped.height + sectionGap;
+    }
+    if (s.total) {
+      ctx.fillStyle = '#0F0F0F';
+      ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+      ctx.fillText('💰 ยอดรวมรายบุคคล', pad, y);
+      const cxT = Math.round((W - s.total.width) / 2);
+      ctx.drawImage(s.total, cxT, y + labelH);
+      y += labelH + s.total.height + sectionGap;
+    }
+  });
 
   ctx.fillStyle = '#9CA3AF';
   ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
