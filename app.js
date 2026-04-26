@@ -1134,22 +1134,9 @@ function renderSummaryChartView() {
   Object.values(scBranchCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   scBranchCharts = {};
 
-  let gP = 0, gM = 0, gPl = 0;
-  BRANCHES.forEach(br => br.employees.forEach(e => {
-    const t = empDailyTotals(br.id, e.id);
-    gP += t.pt; gM += t.member; gPl += t.plan;
-  }));
-
   let html = '<div class="main-title-row">' +
     '<h2 class="main-title"><span>📊</span><span>กราฟสรุปยอดขาย (แยกตามสาขา)</span></h2>' +
     '<div style="font-size:12px;color:var(--gray-text)">ดึงจาก "พนักงาน" (DAILY)</div>' +
-    '</div>';
-
-  html += '<div class="kpi-grid">' +
-    '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอด PT รวม</div><div class="kpi-value">฿' + fmt0(gP) + '</div><div class="kpi-sub">ทั้ง 3 สาขา</div></div>' +
-    '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอด MEMBER รวม</div><div class="kpi-value">฿' + fmt0(gM) + '</div><div class="kpi-sub">ทั้ง 3 สาขา</div></div>' +
-    '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP รวม</div><div class="kpi-value">฿' + fmt0(gPl) + '</div><div class="kpi-sub">ทั้ง 3 สาขา</div></div>' +
-    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(gP+gM+gPl) + '</div><div class="kpi-sub">PT+MEMBER+PLAN</div></div>' +
     '</div>';
 
   // Color customizer
@@ -1185,117 +1172,154 @@ function renderSummaryChartView() {
     '</div></div></div>';
 
   BRANCHES.forEach(br => {
-    const bt = branchDailyTotals(br.id);
+    const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t }; })
+      .sort((a, b) => b.total - a.total);
+    const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t }; })
+      .sort((a, b) => b.total - a.total);
+    const totA = empsA.reduce((s, r) => s + r.total, 0);
+    const totB = empsB.reduce((s, r) => s + r.total, 0);
+    const totBr = totA + totB;
+    const totalCount = empsA.length + empsB.length;
+    const chartH = Math.max(360, totalCount * 32 + 100);
+
     html += '<div class="card" style="margin-bottom:20px" data-sc-card="' + br.id + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
-      '<h3 style="margin:0;border:none;padding:0"><span>' + br.emoji + '</span> สาขา' + br.name +
-      ' <span style="font-size:12px;color:var(--gray-text);font-weight:400;margin-left:6px">' +
-      'PT ฿' + fmt0(bt.pt) + ' · MEM ฿' + fmt0(bt.member) + ' · PLAN ฿' + fmt0(bt.plan) + ' · รวม ฿' + fmt0(bt.total) +
-      '</span></h3>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:12px">' +
+      '<h3 style="margin:0;border:none;padding:0"><span>' + br.emoji + '</span> สาขา' + br.name + '</h3>' +
       '<div style="display:flex;gap:6px">' +
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
-      '</div></div>';
-
-    ['A', 'B'].forEach(team => {
-      const teamEmpsCount = br.employees.filter(e => (e.team || 'A') === team).length;
-      const teamColor = team === 'A' ? { bg:'#FEF3C7', border:'#F59E0B', text:'#92400E', icon:'🅰' } : { bg:'#DBEAFE', border:'#2563EB', text:'#1E40AF', icon:'🅱' };
-      html += '<div style="margin-bottom:18px;border:1px solid ' + teamColor.border + ';border-radius:12px;overflow:hidden">' +
-        '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:' + teamColor.bg + ';border-bottom:1px solid ' + teamColor.border + '">' +
-        '<span style="font-size:16px">' + teamColor.icon + '</span>' +
-        '<span style="font-size:13px;font-weight:800;color:' + teamColor.text + '">ทีม ' + team + '</span>' +
-        '<span style="font-size:11px;font-weight:700;color:' + teamColor.text + ';background:#fff;padding:2px 10px;border-radius:999px">' + teamEmpsCount + ' คน</span>' +
-        '</div>' +
-        '<div style="padding:12px 14px">' +
-        (teamEmpsCount === 0
-          ? '<div style="text-align:center;padding:24px;color:var(--gray-text);font-size:12px">— ไม่มีพนักงานในทีมนี้ —</div>'
-          : '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">📊 ยอดแยก 3 หมวด (PT / MEMBER / PLAN) รายคน</div>' +
-            '<div class="chart-wrap" style="height:280px;margin-bottom:12px"><canvas id="scGrouped_' + br.id + '_' + team + '"></canvas></div>' +
-            '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:8px;border-top:1px dashed var(--gray-line)">💰 ยอดรวมรายบุคคล (เรียงมาก → น้อย)</div>' +
-            '<div class="chart-wrap" style="height:' + Math.max(140, teamEmpsCount * 42) + 'px"><canvas id="scTotal_' + br.id + '_' + team + '"></canvas></div>'
-        ) +
-        '</div></div>';
-    });
-
-    html += '</div>';
+      '</div></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' +
+      '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px">' +
+      '<div style="font-size:11px;font-weight:700;color:#92400E">🅰 ทีม A · ' + empsA.length + ' คน</div>' +
+      '<div style="font-size:18px;font-weight:800;color:#92400E;margin-top:2px">฿' + fmt0(totA) + '</div></div>' +
+      '<div style="flex:1;min-width:180px;padding:10px 14px;background:#DBEAFE;border-left:4px solid #2563EB;border-radius:8px">' +
+      '<div style="font-size:11px;font-weight:700;color:#1E40AF">🅱 ทีม B · ' + empsB.length + ' คน</div>' +
+      '<div style="font-size:18px;font-weight:800;color:#1E40AF;margin-top:2px">฿' + fmt0(totB) + '</div></div>' +
+      '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEE2E2;border-left:4px solid #DC2626;border-radius:8px">' +
+      '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 รวมทั้งสาขา</div>' +
+      '<div style="font-size:18px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(totBr) + '</div></div>' +
+      '</div>' +
+      (totalCount === 0
+        ? '<div style="text-align:center;padding:40px;color:var(--gray-text);font-size:12px">— ไม่มีพนักงานในสาขานี้ —</div>'
+        : '<div class="chart-wrap" style="height:' + chartH + 'px"><canvas id="scCombined_' + br.id + '"></canvas></div>'
+      ) +
+      '</div>';
   });
 
   container.innerHTML = html;
 
+  // Plugin to draw team A/B background zones and divider on combined chart
+  const teamZonePlugin = {
+    id: 'teamZones',
+    beforeDraw(chart, _args, opts) {
+      const cnt = opts && opts.aCount;
+      const tot = opts && opts.totalCount;
+      if (!tot || cnt === undefined) return;
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const xScale = scales.x;
+      if (!xScale) return;
+      ctx.save();
+      // Team A zone (left)
+      if (cnt > 0) {
+        const rightEdge = cnt < tot
+          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
+          : chartArea.right;
+        ctx.fillStyle = 'rgba(245,158,11,0.08)';
+        ctx.fillRect(chartArea.left, chartArea.top, rightEdge - chartArea.left, chartArea.bottom - chartArea.top);
+      }
+      // Team B zone (right)
+      if (cnt < tot) {
+        const leftEdge = cnt > 0
+          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
+          : chartArea.left;
+        ctx.fillStyle = 'rgba(37,99,235,0.08)';
+        ctx.fillRect(leftEdge, chartArea.top, chartArea.right - leftEdge, chartArea.bottom - chartArea.top);
+        // Divider line
+        if (cnt > 0) {
+          ctx.strokeStyle = 'rgba(31,31,31,0.4)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(leftEdge, chartArea.top);
+          ctx.lineTo(leftEdge, chartArea.bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      // Team labels at top
+      ctx.fillStyle = '#92400E';
+      ctx.font = 'bold 12px "Segoe UI","Noto Sans Thai",Arial,sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      if (cnt > 0) {
+        const aMid = (chartArea.left + (cnt < tot
+          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
+          : chartArea.right)) / 2;
+        ctx.fillText('🅰 ทีม A', aMid, chartArea.top + 2);
+      }
+      if (cnt < tot) {
+        ctx.fillStyle = '#1E40AF';
+        const bLeft = cnt > 0
+          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
+          : chartArea.left;
+        const bMid = (bLeft + chartArea.right) / 2;
+        ctx.fillText('🅱 ทีม B', bMid, chartArea.top + 2);
+      }
+      ctx.restore();
+    }
+  };
+
   BRANCHES.forEach(br => {
-    ['A', 'B'].forEach(team => {
-      const emps = br.employees
-        .filter(e => (e.team || 'A') === team)
-        .map(e => {
-          const t = empDailyTotals(br.id, e.id);
-          return { emp: e, ...t };
-        }).sort((a, b) => b.total - a.total);
+    const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t }; })
+      .sort((a, b) => b.total - a.total);
+    const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'B', ...t }; })
+      .sort((a, b) => b.total - a.total);
+    const all = empsA.concat(empsB);
+    if (!all.length) return;
 
-      if (!emps.length) return;
+    const ctx = document.getElementById('scCombined_' + br.id);
+    if (!ctx) return;
 
-      const labels = emps.map(x => x.emp.name);
-      const pt  = emps.map(x => x.pt);
-      const mem = emps.map(x => x.member);
-      const pln = emps.map(x => x.plan);
-
-      const grouped = document.getElementById('scGrouped_' + br.id + '_' + team);
-      if (grouped) {
-        scBranchCharts['g_' + br.id + '_' + team] = new Chart(grouped, {
-          type: 'bar',
-          data: { labels: labels, datasets: [
-            { label: '💪 PT', data: pt, backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
-            { label: '🎫 MEMBER', data: mem, backgroundColor: CHART_COLORS.member, borderRadius: 4 },
-            { label: '📋 PLAN', data: pln, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
-          ]},
-          options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-            layout: { padding: { top: 22 } },
-            plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, weight: 600 } } },
-              tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
-              datalabels: {
-                display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
-                anchor: 'end', align: 'end', offset: 2,
-                color: '#1F1F1F', font: { size: 9, weight: 700 },
-                formatter: v => '฿' + fmtShort(v)
-              }
+    const labels = all.map(x => x.emp.name);
+    scBranchCharts['c_' + br.id] = new Chart(ctx, {
+      type: 'bar',
+      data: { labels: labels, datasets: [
+        { label: '💪 PT', data: all.map(x => x.pt), backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
+        { label: '🎫 MEMBER', data: all.map(x => x.member), backgroundColor: CHART_COLORS.member, borderRadius: 4 },
+        { label: '📋 PLAN', data: all.map(x => x.plan), backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        layout: { padding: { top: 30 } },
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 } } },
+          tooltip: { callbacks: {
+            title: items => {
+              if (!items.length) return '';
+              const i = items[0].dataIndex;
+              return all[i].emp.name + ' · ทีม ' + all[i].team;
             },
-            scales: {
-              x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
-              y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
-            }
-          }
-        });
-      }
-
-      const totals = emps.map(x => x.total);
-      const maxT = Math.max(...totals, 0);
-      const totalCtx = document.getElementById('scTotal_' + br.id + '_' + team);
-      if (totalCtx) {
-        scBranchCharts['t_' + br.id + '_' + team] = new Chart(totalCtx, {
-          type: 'bar',
-          data: { labels: labels, datasets: [
-            { label: '💰 ยอดรวม', data: totals,
-              backgroundColor: totals.map(v => v === maxT && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member),
-              borderRadius: 6, barThickness: 24 }
-          ]},
-          options: {
-            indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-            layout: { padding: { right: 56 } },
-            plugins: { legend: { display: false },
-              tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } },
-              datalabels: {
-                display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
-                anchor: 'end', align: 'right', offset: 6,
-                color: '#1F1F1F', font: { size: 11, weight: 700 },
-                formatter: v => '฿' + fmt0(v)
-              }
-            },
-            scales: {
-              x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
-              y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 11 } }, grid: { display: false } }
-            }
-          }
-        });
-      }
+            label: c => c.dataset.label + ': ฿' + fmt0(c.raw)
+          } },
+          datalabels: {
+            display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+            anchor: 'end', align: 'end', offset: 2,
+            color: '#1F1F1F', font: { size: 9, weight: 700 },
+            formatter: v => '฿' + fmtShort(v)
+          },
+          teamZones: { aCount: empsA.length, totalCount: all.length }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
+          y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
+        }
+      },
+      plugins: [teamZonePlugin]
     });
   });
 
@@ -1498,30 +1522,21 @@ function saveBranchChart(branchId, fmt, silent) {
   const br = getBranch(branchId);
   if (!br) { if (!silent) showToast('⚠ ไม่พบสาขา', true); return false; }
 
-  const sections = [];
-  ['A', 'B'].forEach(team => {
-    const g = scBranchCharts['g_' + branchId + '_' + team];
-    const t = scBranchCharts['t_' + branchId + '_' + team];
-    const gC = g && g.canvas && g.canvas.width ? g.canvas : null;
-    const tC = t && t.canvas && t.canvas.width ? t.canvas : null;
-    if (gC || tC) sections.push({ team: team, grouped: gC, total: tC });
-  });
-  if (!sections.length) { if (!silent) showToast('⚠ ไม่มีกราฟ', true); return false; }
+  const chart = scBranchCharts['c_' + branchId];
+  const src = chart && chart.canvas && chart.canvas.width ? chart.canvas : null;
+  if (!src) { if (!silent) showToast('⚠ ไม่มีกราฟ', true); return false; }
 
-  const headerH = 110;
+  let totA = 0, totB = 0;
+  br.employees.forEach(e => {
+    const t = empDailyTotals(branchId, e.id);
+    if ((e.team || 'A') === 'A') totA += t.total; else totB += t.total;
+  });
+
+  const headerH = 130;
   const footerH = 40;
   const pad = 20;
-  const sectionGap = 24;
-  const labelH = 22;
-  const teamHeaderH = 36;
-  const W = Math.max(900, ...sections.flatMap(s => [s.grouped ? s.grouped.width : 0, s.total ? s.total.width : 0]));
-
-  let H = headerH + footerH;
-  sections.forEach(s => {
-    H += teamHeaderH;
-    if (s.grouped) H += s.grouped.height + sectionGap;
-    if (s.total) H += labelH + s.total.height + sectionGap;
-  });
+  const W = Math.max(src.width, 900);
+  const H = src.height + headerH + footerH;
 
   const out = document.createElement('canvas');
   out.width = W; out.height = H;
@@ -1538,31 +1553,16 @@ function saveBranchChart(branchId, fmt, silent) {
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
   ctx.fillText(br.emoji + '  สาขา' + br.name, pad, 52);
 
-  const bt = branchDailyTotals(branchId);
-  ctx.fillStyle = '#4B5563';
-  ctx.font = '13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText('PT ฿' + fmt0(bt.pt) + '   MEMBER ฿' + fmt0(bt.member) + '   PLAN ฿' + fmt0(bt.plan) + '   รวม ฿' + fmt0(bt.total), pad, 80);
+  ctx.fillStyle = '#92400E';
+  ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.fillText('🅰 ทีม A: ฿' + fmt0(totA), pad, 82);
+  ctx.fillStyle = '#1E40AF';
+  ctx.fillText('🅱 ทีม B: ฿' + fmt0(totB), pad + 200, 82);
+  ctx.fillStyle = '#991B1B';
+  ctx.fillText('💰 รวม: ฿' + fmt0(totA + totB), pad + 400, 82);
 
-  let y = headerH;
-  sections.forEach(s => {
-    ctx.fillStyle = s.team === 'A' ? '#92400E' : '#1E40AF';
-    ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-    ctx.fillText((s.team === 'A' ? '🅰' : '🅱') + '  ทีม ' + s.team, pad, y + 6);
-    y += teamHeaderH;
-    if (s.grouped) {
-      const cx = Math.round((W - s.grouped.width) / 2);
-      ctx.drawImage(s.grouped, cx, y);
-      y += s.grouped.height + sectionGap;
-    }
-    if (s.total) {
-      ctx.fillStyle = '#0F0F0F';
-      ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-      ctx.fillText('💰 ยอดรวมรายบุคคล', pad, y);
-      const cxT = Math.round((W - s.total.width) / 2);
-      ctx.drawImage(s.total, cxT, y + labelH);
-      y += labelH + s.total.height + sectionGap;
-    }
-  });
+  const cx = Math.round((W - src.width) / 2);
+  ctx.drawImage(src, cx, headerH);
 
   ctx.fillStyle = '#9CA3AF';
   ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
