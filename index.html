@@ -8,9 +8,39 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260427o">
+<link rel="stylesheet" href="styles.css?v=20260427p">
 </head>
 <body>
+
+<!-- ====== LOGIN OVERLAY ====== -->
+<div id="loginOverlay" style="display:none;position:fixed;inset:0;z-index:10000;background:radial-gradient(circle at 30% 20%,#3a0d0d 0%,#0a0a0a 60%,#000 100%);align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:420px;background:#fff;border-radius:18px;padding:36px 30px;box-shadow:0 20px 60px rgba(0,0,0,0.6);text-align:center">
+    <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width="120" height="120" style="margin:0 auto 12px;display:block">
+      <defs><path id="loginTopArc" d="M 15,68 A 48,48 0 0 1 105,68" fill="none"/></defs>
+      <text font-family="Arial Black, Impact, sans-serif" font-size="17" font-weight="900"
+            fill="#0F0F0F" stroke="#DC2626" stroke-width="0.8" letter-spacing="1">
+        <textPath href="#loginTopArc" startOffset="50%" text-anchor="middle">STATION</textPath>
+      </text>
+      <circle cx="60" cy="68" r="28" fill="#DC2626"/>
+      <text x="60" y="82" font-family="Arial Black, Impact, sans-serif" font-size="36"
+            font-weight="900" fill="#ffffff" text-anchor="middle">24</text>
+      <text x="60" y="112" font-family="Arial Black, Impact, sans-serif" font-size="12"
+            font-weight="900" fill="#DC2626" text-anchor="middle" letter-spacing="2.5">FITNESS</text>
+    </svg>
+    <h2 style="margin:0 0 4px;font-size:22px;font-weight:900;color:#0F0F0F">STATION <span style="color:#DC2626">24</span> FITNESS</h2>
+    <div style="font-size:12px;color:#6B7280;margin-bottom:22px">Sales Dashboard · เข้าสู่ระบบ</div>
+    <form id="loginForm" style="text-align:left">
+      <label style="display:block;font-size:12px;font-weight:700;color:#0F0F0F;margin-bottom:6px">👤 ชื่อผู้ใช้</label>
+      <input type="text" id="loginUsername" autocomplete="username" required style="width:100%;padding:12px 14px;border:1px solid #E5E7EB;border-radius:10px;font-family:inherit;font-size:14px;margin-bottom:14px;box-sizing:border-box">
+      <label style="display:block;font-size:12px;font-weight:700;color:#0F0F0F;margin-bottom:6px">🔒 รหัสผ่าน</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" required style="width:100%;padding:12px 14px;border:1px solid #E5E7EB;border-radius:10px;font-family:inherit;font-size:14px;margin-bottom:6px;box-sizing:border-box">
+      <div id="loginError" style="font-size:12px;color:#DC2626;font-weight:700;min-height:18px;margin-bottom:10px"></div>
+      <button type="submit" style="width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(220,38,38,0.3)">🔓 เข้าสู่ระบบ</button>
+    </form>
+    <div style="font-size:11px;color:#9CA3AF;margin-top:18px">© 2026 Station 24 Fitness</div>
+  </div>
+</div>
+
 <div class="app">
 
   <header class="header">
@@ -36,7 +66,13 @@
     </div>
     <div class="header-actions">
       <div class="date-badge" id="dateBadge">📅 </div>
+      <div id="userBadge" style="display:none;align-items:center;gap:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);padding:6px 12px;border-radius:999px;color:#fff;font-size:12px;font-weight:700">
+        <span id="userBadgeIcon">👤</span>
+        <span id="userBadgeName">—</span>
+        <span id="userBadgeRole" style="font-size:10px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:999px">—</span>
+      </div>
       <button class="btn btn-ghost" id="exportBtn">⬇ Export Excel</button>
+      <button class="btn btn-ghost" id="logoutBtn" style="display:none">🚪 ออกจากระบบ</button>
       <button class="sidebar-toggle" id="sidebarToggle">☰</button>
     </div>
   </header>
@@ -198,6 +234,15 @@
         <div id="rankingAllContainer"></div>
       </div>
 
+      <!-- ====== USER MANAGEMENT VIEW (admin only) ====== -->
+      <div id="usersView" style="display:none;">
+        <div class="main-title-row">
+          <h2 class="main-title"><span>👥</span><span>จัดการผู้ใช้และสาขา</span></h2>
+          <div style="font-size:12px;color:var(--gray-text)">เพิ่ม/แก้/ลบ ผู้ใช้และสาขา (เฉพาะ Admin)</div>
+        </div>
+        <div id="usersContainer"></div>
+      </div>
+
       <footer class="footer">
         <p>© 2026 Station 24 Fitness · Sales Dashboard</p>
       </footer>
@@ -300,6 +345,6 @@
 <div class="toast" id="toast"></div>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-<script src="app.js?v=20260427o"></script>
+<script src="app.js?v=20260427p"></script>
 </body>
 </html>

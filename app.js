@@ -41,6 +41,8 @@ const STORAGE_BRANCHES = 'station24_branches_v2';
 const STORAGE_DAILY = 'station24_daily_v1';
 const STORAGE_COLORS = 'station24_chart_colors_v1';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
+const STORAGE_USERS = 'station24_users_v1';
+const STORAGE_SESSION = 'station24_session_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 
 const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
@@ -97,6 +99,39 @@ function branchColor(bid) {
 }
 function setBranchColor(bid, hex) { BRANCH_COLORS[bid] = hex; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
 function resetBranchColors() { BRANCH_COLORS = {}; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
+
+// ===== Auth / Users =====
+const DEFAULT_USERS = [
+  { username: 'admin', password: 'admin123', role: 'admin', branchId: null, displayName: 'ผู้ดูแลระบบ' }
+];
+let USERS = loadJSON(STORAGE_USERS, DEFAULT_USERS);
+if (!USERS.some(u => u.role === 'admin')) USERS.unshift(DEFAULT_USERS[0]);
+function saveUsers() { saveJSON(STORAGE_USERS, USERS); }
+
+let currentUser = null;
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_SESSION) || 'null');
+    if (s && s.username) {
+      const u = USERS.find(x => x.username === s.username);
+      if (u) currentUser = u;
+    }
+  } catch(e){}
+}
+function saveSession() {
+  if (currentUser) localStorage.setItem(STORAGE_SESSION, JSON.stringify({ username: currentUser.username }));
+  else localStorage.removeItem(STORAGE_SESSION);
+}
+function login(username, password) {
+  const u = USERS.find(x => x.username === username && x.password === password);
+  if (!u) return false;
+  currentUser = u; saveSession(); return true;
+}
+function logout() { currentUser = null; saveSession(); }
+function isAdmin() { return currentUser && currentUser.role === 'admin'; }
+function isEditor() { return currentUser && currentUser.role === 'editor'; }
+function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
+function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 
 BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
 BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
@@ -188,7 +223,20 @@ function setView(v) {
   if(document.getElementById('historyView'))document.getElementById('historyView').style.display = v === 'history' ? 'block' : 'none';
   if(document.getElementById('rankingView'))document.getElementById('rankingView').style.display = v === 'ranking' ? 'block' : 'none';
   if(document.getElementById('rankingAllView'))document.getElementById('rankingAllView').style.display = v === 'rankingall' ? 'block' : 'none';
+  if(document.getElementById('usersView'))document.getElementById('usersView').style.display = v === 'users' ? 'block' : 'none';
   if(document.getElementById('branchListSection'))document.getElementById('branchListSection').style.display = 'block';
+  // Editors are restricted to their branch view only
+  if (isEditor() && v !== 'branch') {
+    activeBranch = currentUser.branchId;
+    v = 'branch';
+    currentView = v;
+    if(document.getElementById('branchView'))document.getElementById('branchView').style.display = 'block';
+    ['overviewView','recordSalesView','summaryChartView','historyView','rankingView','rankingAllView','usersView'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+  }
+  // Non-admin trying to access users view → redirect to overview
+  if (v === 'users' && !isAdmin()) { setView('overview'); return; }
   renderMenuNav();
   if (v === 'branch') renderBranchView();
   else if (v === 'overview') renderOverviewView();
@@ -197,20 +245,35 @@ function setView(v) {
   else if (v === 'history') renderHistoryView();
   else if (v === 'ranking') renderRankingView();
   else if (v === 'rankingall') renderRankingAllView();
+  else if (v === 'users') renderUsersView();
 }
 
 function renderMenuNav() {
-  if(document.getElementById('menuNav'))document.getElementById('menuNav').innerHTML =
+  const nav = document.getElementById('menuNav');
+  if (!nav) return;
+  if (isEditor()) {
+    // Editor sees only their branch view — no menu items
+    nav.innerHTML = '';
+    nav.style.display = 'none';
+    return;
+  }
+  nav.style.display = '';
+  let html =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
     '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับยอดขาย (รวมทุกสาขา)</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติการขาย</span></button>';
-  document.querySelectorAll('#menuNav .menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
+  if (isAdmin()) {
+    html += '<button class="menu-item ' + (currentView==='users'?'active':'') + '" data-view="users"><span class="menu-item-icon">👥</span><span>จัดการผู้ใช้/สาขา</span></button>';
+  }
+  nav.innerHTML = html;
+  nav.querySelectorAll('.menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
 }
 
 function renderSidebar() {
-  if(document.getElementById('branchNav'))document.getElementById('branchNav').innerHTML = BRANCHES.map(b => {
+  const visibleBranches = BRANCHES.filter(b => canSeeBranch(b.id));
+  if(document.getElementById('branchNav'))document.getElementById('branchNav').innerHTML = visibleBranches.map(b => {
     const t = branchDailyTotals(b.id);
     return '<button class="branch-item ' + (b.id===activeBranch?'active':'') + '" data-id="' + b.id + '">' +
       '<span class="branch-item-icon">' + b.emoji + '</span>' +
@@ -1818,5 +1881,207 @@ function hsExportExcel() {
   });
 })();
 
-// Initial view (must be after all let/const declarations to avoid TDZ)
-setView('overview');
+// ===== Users / Branches Management View (admin only) =====
+function renderUsersView() {
+  if (!isAdmin()) return;
+  renderSidebar();
+  const container = document.getElementById('usersContainer');
+  if (!container) return;
+
+  const branchOpts = BRANCHES.map(b => '<option value="' + b.id + '">' + b.emoji + ' ' + b.name + ' (' + b.code + ')</option>').join('');
+
+  let html = '';
+
+  // ---- Branches management ----
+  html += '<div class="card" style="margin-bottom:18px">' +
+    '<h3><span>🏢</span> สาขา <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + BRANCHES.length + ' สาขา)</span></h3>' +
+    '<div style="overflow-x:auto"><table class="history-table" style="width:100%">' +
+    '<thead><tr><th>Emoji</th><th>รหัส</th><th>ชื่อสาขา</th><th>พนักงาน</th><th></th></tr></thead><tbody>' +
+    BRANCHES.map(b => {
+      return '<tr>' +
+        '<td style="font-size:18px">' + b.emoji + '</td>' +
+        '<td><strong>' + b.code + '</strong></td>' +
+        '<td>สาขา' + b.name + '</td>' +
+        '<td>' + b.employees.length + ' คน</td>' +
+        '<td><button class="br-del" data-bid="' + b.id + '" style="background:#FEE2E2;color:#991B1B;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:700;font-size:11px">🗑 ลบสาขา</button></td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    '<div style="margin-top:14px;padding:14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px">' +
+    '<div style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:10px">➕ เพิ่มสาขาใหม่</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<input type="text" id="newBranchEmoji" placeholder="🌟" maxlength="3" style="width:70px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:18px;text-align:center">' +
+    '<input type="text" id="newBranchCode" placeholder="รหัส (เช่น SP)" style="width:140px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px;text-transform:uppercase">' +
+    '<input type="text" id="newBranchName" placeholder="ชื่อสาขา (เช่น สีลม)" style="flex:1;min-width:160px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<button type="button" id="addBranchBtn" style="padding:9px 18px;border:none;border-radius:8px;background:var(--red);color:#fff;font-weight:700;cursor:pointer">+ เพิ่มสาขา</button>' +
+    '</div></div></div>';
+
+  // ---- Users management ----
+  html += '<div class="card" style="margin-bottom:18px">' +
+    '<h3><span>👥</span> ผู้ใช้ <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + USERS.length + ' คน)</span></h3>' +
+    '<div style="overflow-x:auto"><table class="history-table" style="width:100%">' +
+    '<thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อแสดง</th><th>Role</th><th>สาขา</th><th>รหัสผ่าน</th><th></th></tr></thead><tbody>' +
+    USERS.map((u, i) => {
+      const roleBadge = u.role === 'admin'
+        ? '<span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">🛡 ADMIN</span>'
+        : '<span style="background:#DBEAFE;color:#1E40AF;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">✏️ EDITOR</span>';
+      const br = BRANCHES.find(b => b.id === u.branchId);
+      const branchSel = u.role === 'editor'
+        ? '<select class="user-branch" data-idx="' + i + '" style="padding:6px 10px;border-radius:6px;border:1px solid var(--gray-line);font-size:12px">' +
+          BRANCHES.map(b => '<option value="' + b.id + '"' + (b.id===u.branchId?' selected':'') + '>' + b.emoji + ' ' + b.name + '</option>').join('') +
+          '</select>'
+        : '<span style="color:var(--gray-text);font-size:12px">— ทุกสาขา —</span>';
+      return '<tr>' +
+        '<td><strong>' + u.username + '</strong></td>' +
+        '<td><input type="text" class="user-display" data-idx="' + i + '" value="' + (u.displayName || '') + '" style="width:140px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-size:12px"></td>' +
+        '<td>' + roleBadge + '</td>' +
+        '<td>' + branchSel + '</td>' +
+        '<td><input type="text" class="user-pass" data-idx="' + i + '" value="' + u.password + '" style="width:120px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-size:12px;font-family:monospace"></td>' +
+        '<td>' +
+        (u.username === currentUser.username
+          ? '<span style="font-size:11px;color:var(--gray-text)">(ตัวคุณ)</span>'
+          : '<button class="user-del" data-idx="' + i + '" style="background:#FEE2E2;color:#991B1B;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;font-size:11px">🗑 ลบ</button>'
+        ) +
+        '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    '<div style="margin-top:14px;padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px">' +
+    '<div style="font-size:13px;font-weight:700;color:#1E40AF;margin-bottom:10px">➕ เพิ่มผู้ใช้ใหม่</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">' +
+    '<input type="text" id="newUserUsername" placeholder="ชื่อผู้ใช้" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<input type="text" id="newUserPassword" placeholder="รหัสผ่าน" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<input type="text" id="newUserDisplay" placeholder="ชื่อแสดง" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<select id="newUserRole" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<option value="editor">✏️ Editor (เฉพาะสาขา)</option>' +
+    '<option value="admin">🛡 Admin (ทุกสาขา)</option>' +
+    '</select>' +
+    '<select id="newUserBranch" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' + branchOpts + '</select>' +
+    '<button type="button" id="addUserBtn" style="padding:9px;border:none;border-radius:8px;background:#2563EB;color:#fff;font-weight:700;cursor:pointer">+ เพิ่มผู้ใช้</button>' +
+    '</div></div></div>';
+
+  container.innerHTML = html;
+
+  // Wire events
+  container.querySelectorAll('.br-del').forEach(btn => {
+    btn.onclick = () => {
+      const bid = btn.dataset.bid;
+      const br = BRANCHES.find(b => b.id === bid);
+      if (!br) return;
+      if (BRANCHES.length <= 1) { showToast('⚠ ต้องมีอย่างน้อย 1 สาขา', true); return; }
+      if (!confirm('ลบสาขา "' + br.name + '" และข้อมูลทั้งหมด?\n(ผู้ใช้ Editor ที่ผูกกับสาขานี้จะไม่ login ได้)')) return;
+      const idx = BRANCHES.findIndex(b => b.id === bid);
+      if (idx >= 0) BRANCHES.splice(idx, 1);
+      delete DAILY[bid];
+      saveBranches(); saveDaily();
+      if (activeBranch === bid) activeBranch = BRANCHES[0] ? BRANCHES[0].id : null;
+      renderUsersView(); showToast('🗑 ลบสาขา ' + br.name);
+    };
+  });
+
+  document.getElementById('addBranchBtn').onclick = () => {
+    const emoji = document.getElementById('newBranchEmoji').value.trim() || '🏢';
+    const code = document.getElementById('newBranchCode').value.trim().toUpperCase();
+    const name = document.getElementById('newBranchName').value.trim();
+    if (!code || !name) { showToast('⚠ กรอกรหัสและชื่อสาขา', true); return; }
+    if (BRANCHES.some(b => b.code === code || b.id === 'br-' + code.toLowerCase())) { showToast('⚠ รหัสซ้ำ', true); return; }
+    const bid = 'br-' + code.toLowerCase();
+    BRANCHES.push({ id: bid, code: code, name: name, emoji: emoji, employees: [] });
+    DAILY[bid] = {};
+    saveBranches(); saveDaily();
+    renderUsersView(); showToast('✓ เพิ่มสาขา ' + name);
+  };
+
+  container.querySelectorAll('.user-display').forEach(inp => {
+    inp.onchange = () => { USERS[+inp.dataset.idx].displayName = inp.value.trim(); saveUsers(); };
+  });
+  container.querySelectorAll('.user-pass').forEach(inp => {
+    inp.onchange = () => { USERS[+inp.dataset.idx].password = inp.value; saveUsers(); showToast('✓ เปลี่ยนรหัสผ่าน'); };
+  });
+  container.querySelectorAll('.user-branch').forEach(sel => {
+    sel.onchange = () => { USERS[+sel.dataset.idx].branchId = sel.value; saveUsers(); };
+  });
+  container.querySelectorAll('.user-del').forEach(btn => {
+    btn.onclick = () => {
+      const idx = +btn.dataset.idx;
+      const u = USERS[idx];
+      if (!u) return;
+      if (u.role === 'admin' && USERS.filter(x => x.role === 'admin').length === 1) { showToast('⚠ ต้องมี admin อย่างน้อย 1 คน', true); return; }
+      if (!confirm('ลบผู้ใช้ "' + u.username + '"?')) return;
+      USERS.splice(idx, 1); saveUsers();
+      renderUsersView(); showToast('🗑 ลบผู้ใช้');
+    };
+  });
+
+  document.getElementById('addUserBtn').onclick = () => {
+    const u = document.getElementById('newUserUsername').value.trim();
+    const p = document.getElementById('newUserPassword').value;
+    const d = document.getElementById('newUserDisplay').value.trim() || u;
+    const role = document.getElementById('newUserRole').value;
+    const bid = document.getElementById('newUserBranch').value;
+    if (!u || !p) { showToast('⚠ กรอกชื่อผู้ใช้และรหัสผ่าน', true); return; }
+    if (USERS.some(x => x.username === u)) { showToast('⚠ ชื่อผู้ใช้ซ้ำ', true); return; }
+    USERS.push({ username: u, password: p, displayName: d, role: role, branchId: role === 'editor' ? bid : null });
+    saveUsers(); renderUsersView(); showToast('✓ เพิ่มผู้ใช้ ' + u);
+  };
+}
+
+// ===== Login boot =====
+function applyAuthUIBoot() {
+  const overlay = document.getElementById('loginOverlay');
+  const badge = document.getElementById('userBadge');
+  const lbtn = document.getElementById('logoutBtn');
+  if (currentUser) {
+    if (overlay) overlay.style.display = 'none';
+    if (badge) {
+      badge.style.display = 'inline-flex';
+      const ic = document.getElementById('userBadgeIcon');
+      const nm = document.getElementById('userBadgeName');
+      const rl = document.getElementById('userBadgeRole');
+      if (ic) ic.textContent = isAdmin() ? '🛡' : '✏️';
+      if (nm) nm.textContent = currentUser.displayName || currentUser.username;
+      if (rl) {
+        if (isAdmin()) rl.textContent = 'ADMIN';
+        else if (isEditor()) {
+          const br = BRANCHES.find(b => b.id === currentUser.branchId);
+          rl.textContent = 'EDITOR · ' + (br ? br.name : '—');
+        } else rl.textContent = (currentUser.role || '').toUpperCase();
+      }
+    }
+    if (lbtn) lbtn.style.display = 'inline-flex';
+    // Editor: jump straight to their branch
+    if (isEditor() && currentUser.branchId) {
+      activeBranch = currentUser.branchId;
+      setView('branch');
+    } else {
+      setView('overview');
+    }
+  } else {
+    if (overlay) overlay.style.display = 'flex';
+    if (badge) badge.style.display = 'none';
+    if (lbtn) lbtn.style.display = 'none';
+  }
+}
+
+document.getElementById('loginForm')?.addEventListener('submit', ev => {
+  ev.preventDefault();
+  const u = (document.getElementById('loginUsername').value || '').trim();
+  const p = document.getElementById('loginPassword').value || '';
+  const errEl = document.getElementById('loginError');
+  if (!login(u, p)) {
+    if (errEl) errEl.textContent = '⚠ ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+    return;
+  }
+  if (errEl) errEl.textContent = '';
+  document.getElementById('loginPassword').value = '';
+  applyAuthUIBoot();
+  showToast('✓ ยินดีต้อนรับ ' + (currentUser.displayName || currentUser.username));
+});
+
+document.getElementById('logoutBtn')?.addEventListener('click', () => {
+  if (!confirm('ออกจากระบบ?')) return;
+  logout();
+  applyAuthUIBoot();
+});
+
+loadSession();
+applyAuthUIBoot();
