@@ -1665,41 +1665,93 @@ function renderHistoryView() {
     (document.getElementById('hsBranch') && document.getElementById('hsBranch').value ? ' · <strong>สาขา' + getBranch(document.getElementById('hsBranch').value).name + '</strong>' : '');
 
   const rows = hsCollectRows();
+  const container = document.getElementById('hsBranchesContainer');
+  if (!container) return;
 
-  const cBadge = document.getElementById('hsCountBadge');
-  if (cBadge) cBadge.textContent = '(' + rows.length + ' รายการ)';
-  const body = document.getElementById('hsTableBody');
-  if (body) {
-    if (!rows.length) {
-      body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--gray-text)">📭 ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
-    } else {
-      body.innerHTML = rows.map(x => {
-        const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
-        return '<tr>' +
-          '<td><strong>' + x.date + '</strong></td>' +
-          '<td>' + x.branchEmoji + ' ' + x.branchName + '</td>' +
-          '<td>' + x.empName + '</td>' +
-          '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
-          '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
-          '<td class="num">฿' + fmt0(x.member) + '</td>' +
-          '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
-          '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
-          '<td><button class="hs-del" data-bid="' + x.branchId + '" data-eid="' + x.empId + '" data-date="' + x.date + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
-          '</tr>';
-      }).join('');
-      body.querySelectorAll('.hs-del').forEach(btn => {
-        btn.onclick = () => {
-          const bid = btn.dataset.bid, eid = btn.dataset.eid, d = btn.dataset.date;
-          if (confirm('ลบยอดของ ' + empName(eid) + ' วันที่ ' + d + '?')) {
-            if (DAILY[bid] && DAILY[bid][eid]) delete DAILY[bid][eid][d];
-            saveDaily();
-            renderHistoryView();
-            showToast('🗑 ลบ ' + d);
-          }
-        };
-      });
-    }
+  const branchFilter = document.getElementById('hsBranch') ? document.getElementById('hsBranch').value : '';
+
+  // Group rows by branch
+  const byBranch = {};
+  rows.forEach(x => { (byBranch[x.branchId] = byBranch[x.branchId] || []).push(x); });
+
+  const branchesToShow = BRANCHES.filter(b => !branchFilter || b.id === branchFilter);
+
+  if (!rows.length) {
+    container.innerHTML = '<div class="card"><div style="text-align:center;padding:48px;color:var(--gray-text)">📭 ไม่มีข้อมูลในช่วงที่เลือก</div></div>';
+    return;
   }
+
+  container.innerHTML = branchesToShow.map(b => {
+    const accent = branchColor(b.id);
+    const brRows = (byBranch[b.id] || []).slice().sort((a, c) => a.date < c.date ? 1 : a.date > c.date ? -1 : (a.empName < c.empName ? -1 : 1));
+    let sP=0, sM=0, sPl=0;
+    brRows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; });
+    const sT = sP + sM + sPl;
+
+    const tableHtml = !brRows.length
+      ? '<div style="text-align:center;padding:32px;color:var(--gray-text);font-size:12px">— ไม่มีข้อมูลในสาขานี้ —</div>'
+      : '<div class="history-table-wrap">' +
+        '<table class="history-table">' +
+        '<thead><tr>' +
+        '<th>วันที่</th>' +
+        '<th>พนักงาน</th>' +
+        '<th>ตำแหน่ง</th>' +
+        '<th>ทีม</th>' +
+        '<th class="num">💪 PT</th>' +
+        '<th class="num">🎫 MEMBER</th>' +
+        '<th class="num">📋 PLAN</th>' +
+        '<th class="num">💰 รวม</th>' +
+        '<th></th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        brRows.map(x => {
+          const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
+          const team = (x.team || (empById(x.empId) || {}).team || 'A');
+          const teamBg = team === 'A' ? '#FEF3C7' : '#DBEAFE';
+          const teamFg = team === 'A' ? '#92400E' : '#1E40AF';
+          return '<tr>' +
+            '<td><strong>' + x.date + '</strong></td>' +
+            '<td>' + x.empName + '</td>' +
+            '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
+            '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;background:' + teamBg + ';color:' + teamFg + '">' + (team === 'A' ? '🅰' : '🅱') + ' ' + team + '</span></td>' +
+            '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
+            '<td class="num">฿' + fmt0(x.member) + '</td>' +
+            '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
+            '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
+            '<td><button class="hs-del" data-bid="' + x.branchId + '" data-eid="' + x.empId + '" data-date="' + x.date + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
+            '</tr>';
+        }).join('') +
+        '<tr style="background:#FAFAFA;font-weight:800">' +
+        '<td colspan="4" style="text-align:right">รวมสาขา' + b.name + '</td>' +
+        '<td class="num" style="color:#DC2626">฿' + fmt0(sP) + '</td>' +
+        '<td class="num">฿' + fmt0(sM) + '</td>' +
+        '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
+        '<td class="num">฿' + fmt0(sT) + '</td>' +
+        '<td></td>' +
+        '</tr>' +
+        '</tbody></table></div>';
+
+    return '<div class="card" style="margin-bottom:18px;border-left:5px solid ' + accent + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px dashed var(--gray-line);margin-bottom:12px">' +
+      '<h3 style="margin:0;border:none;padding:0;color:' + accent + '"><span>' + b.emoji + '</span> สาขา' + b.name +
+      ' <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + brRows.length + ' รายการ)</span></h3>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--black)">รวม ฿' + fmt0(sT) + '</div>' +
+      '</div>' +
+      tableHtml +
+      '</div>';
+  }).join('');
+
+  container.querySelectorAll('.hs-del').forEach(btn => {
+    btn.onclick = () => {
+      const bid = btn.dataset.bid, eid = btn.dataset.eid, d = btn.dataset.date;
+      if (confirm('ลบยอดของ ' + empName(eid) + ' วันที่ ' + d + '?')) {
+        if (DAILY[bid] && DAILY[bid][eid]) delete DAILY[bid][eid][d];
+        saveDaily();
+        renderHistoryView();
+        showToast('🗑 ลบ ' + d);
+      }
+    };
+  });
 }
 
 function hsExportExcel() {

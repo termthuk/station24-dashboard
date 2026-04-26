@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260427n">
+<link rel="stylesheet" href="styles.css?v=20260427o">
 </head>
 <body>
 <div class="app">
@@ -172,27 +172,7 @@
           <div class="summary-range-badge" id="hsRangeBadge"></div>
         </div>
 
-        <div class="card">
-          <h3><span>📋</span> รายละเอียดการบันทึก <span id="hsCountBadge" style="font-size:12px;color:var(--gray-text);font-weight:500;margin-left:8px"></span></h3>
-          <div class="history-table-wrap">
-            <table class="history-table">
-              <thead>
-                <tr>
-                  <th>วันที่</th>
-                  <th>สาขา</th>
-                  <th>พนักงาน</th>
-                  <th>ตำแหน่ง</th>
-                  <th class="num">💪 PT</th>
-                  <th class="num">🎫 MEMBER</th>
-                  <th class="num">📋 PLAN</th>
-                  <th class="num">💰 รวม</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="hsTableBody"></tbody>
-            </table>
-          </div>
-        </div>
+        <div id="hsBranchesContainer"></div>
       </div>
 
       <!-- ====== RANKING VIEW ====== -->
@@ -320,6 +300,6 @@
 <div class="toast" id="toast"></div>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-<script src="app.js?v=20260427n"></script>
+<script src="app.js?v=20260427o"></script>
 </body>
 </html>
