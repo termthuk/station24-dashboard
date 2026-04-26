@@ -860,7 +860,6 @@ if(document.getElementById('dateBadge'))document.getElementById('dateBadge').tex
 
 // ===== Overview view =====
 let ovDailyChart = null;
-let ovBranchChart = null;
 function inDateRange(d, from, to) {
   if (from && d < from) return false;
   if (to && d > to) return false;
@@ -904,11 +903,40 @@ function renderOverviewView() {
   });
   const gT = gP + gM + gPl;
 
-  if(document.getElementById('ovKpis'))document.getElementById('ovKpis').innerHTML =
-    '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอดขาย PT</div><div class="kpi-value">฿' + fmt0(gP) + '</div><div class="kpi-sub">Personal Trainer</div></div>' +
-    '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอดขาย MEMBER</div><div class="kpi-value">฿' + fmt0(gM) + '</div><div class="kpi-sub">Membership</div></div>' +
-    '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP</div><div class="kpi-value">฿' + fmt0(gPl) + '</div><div class="kpi-sub">Plan setup</div></div>' +
-    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดขายรวม</div><div class="kpi-value">฿' + fmt0(gT) + '</div><div class="kpi-sub">ทั้ง 3 สาขา</div></div>';
+  const kpiEl = document.getElementById('ovKpis');
+  if (kpiEl) {
+    let kpiHtml = '';
+    BRANCHES.forEach(b => {
+      const bt = branchTotals[b.id];
+      const accent = branchColor(b.id);
+      kpiHtml += '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid ' + accent + ';border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">' +
+        '<div style="font-size:13px;font-weight:800;color:var(--black)"><span style="font-size:16px">' + b.emoji + '</span> สาขา' + b.name + '</div>' +
+        '<div style="font-size:14px;font-weight:800;color:' + accent + '">฿' + fmt0(bt.total) + '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
+        '<div style="background:#FEF2F2;border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;color:#991B1B">💪 PT</div><div style="font-size:13px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(bt.pt) + '</div></div>' +
+        '<div style="background:#F3F4F6;border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;color:#1F1F1F">🎫 MEM</div><div style="font-size:13px;font-weight:800;color:#1F1F1F;margin-top:2px">฿' + fmt0(bt.member) + '</div></div>' +
+        '<div style="background:#FFFBEB;border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;color:#92400E">📋 PLAN</div><div style="font-size:13px;font-weight:800;color:#92400E;margin-top:2px">฿' + fmt0(bt.plan) + '</div></div>' +
+        '</div></div>';
+    });
+    // Grand total card
+    kpiHtml += '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);border-radius:12px;padding:14px 16px;color:#fff;box-shadow:0 2px 8px rgba(220,38,38,0.25)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">' +
+      '<div style="font-size:13px;font-weight:800">💰 รวมทั้งหมด</div>' +
+      '<div style="font-size:14px;font-weight:800">฿' + fmt0(gT) + '</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
+      '<div style="background:rgba(255,255,255,0.18);border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;opacity:0.9">💪 PT</div><div style="font-size:13px;font-weight:800;margin-top:2px">฿' + fmt0(gP) + '</div></div>' +
+      '<div style="background:rgba(255,255,255,0.18);border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;opacity:0.9">🎫 MEM</div><div style="font-size:13px;font-weight:800;margin-top:2px">฿' + fmt0(gM) + '</div></div>' +
+      '<div style="background:rgba(255,255,255,0.18);border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;opacity:0.9">📋 PLAN</div><div style="font-size:13px;font-weight:800;margin-top:2px">฿' + fmt0(gPl) + '</div></div>' +
+      '</div></div>';
+    kpiEl.innerHTML = kpiHtml;
+    kpiEl.style.display = 'grid';
+    kpiEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
+    kpiEl.style.gap = '14px';
+    kpiEl.style.marginBottom = '18px';
+  }
 
   // Per-branch daily totals
   const days = Object.keys(byDate).sort();
@@ -980,23 +1008,6 @@ function renderOverviewView() {
     }
   });
 
-  if (ovBranchChart) ovBranchChart.destroy();
-  ovBranchChart = new Chart(document.getElementById('ovBranchChart'), {
-    type: 'bar',
-    data: { labels: BRANCHES.map(b => b.emoji + ' สาขา' + b.name), datasets: [
-      { label: '💪 PT', data: BRANCHES.map(b => branchTotals[b.id].pt), backgroundColor: '#DC2626', borderRadius: 6 },
-      { label: '🎫 MEMBER', data: BRANCHES.map(b => branchTotals[b.id].member), backgroundColor: '#1F1F1F', borderRadius: 6 },
-      { label: '📋 PLAN', data: BRANCHES.map(b => branchTotals[b.id].plan), backgroundColor: '#D97706', borderRadius: 6 }
-    ]},
-    options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend: { position:'bottom', labels: { padding:10, font:{ size:11, weight:600 } } },
-        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 12, weight: 700 }, color: '#1F1F1F' } },
-        y: { beginAtZero: true, ticks: { callback: v => '฿'+fmtInt(v), font: { size: 10 } }, grid: { color:'#F3F4F6' } }
-      }
-    }
-  });
 }
 
 
