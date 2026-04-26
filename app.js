@@ -500,19 +500,19 @@ function renderBranchInline() {
         '<div class="emp-card-total">' +
         '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
-        '<div style="margin-top:8px;padding:8px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">' +
-        '<div style="font-size:11px;font-weight:700;color:#92400E">📝 Note</div>' +
-        '<button type="button" class="inline-note-save" data-eid="' + e.id + '" style="font-size:10px;padding:3px 10px;border:none;background:#F59E0B;color:#fff;border-radius:5px;cursor:pointer;font-weight:700">💾 บันทึก</button>' +
-        '</div>' +
-        '<textarea class="inline-note" data-eid="' + e.id + '" rows="2" placeholder="หมายเหตุ / นัดหมาย / สิ่งที่ต้องตามต่อ..." style="width:100%;padding:6px 8px;border:1px solid #FDE68A;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;background:#fff;box-sizing:border-box">' + (e.note || '').replace(/</g,'&lt;') + '</textarea>' +
-        '</div>' +
         '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
         '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
         '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
         '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
         '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
+        '</div>' +
+        '<div style="margin-top:10px;padding:8px 10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1E40AF">📋 รายละเอียดการขาย</div>' +
+        '<button type="button" class="inline-note-save" data-eid="' + e.id + '" style="font-size:10px;padding:3px 10px;border:none;background:#2563EB;color:#fff;border-radius:5px;cursor:pointer;font-weight:700">💾 บันทึก</button>' +
+        '</div>' +
+        '<textarea class="inline-note" data-eid="' + e.id + '" rows="2" placeholder="รายละเอียดยอดขาย / แพคเกจที่ขาย / ลูกค้า..." style="width:100%;padding:6px 8px;border:1px solid #BFDBFE;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical;background:#fff;box-sizing:border-box">' + (e.note || '').replace(/</g,'&lt;') + '</textarea>' +
         '</div></div>';
     };
 
