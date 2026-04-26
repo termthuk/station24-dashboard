@@ -860,32 +860,56 @@ function renderOverviewView() {
     '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP</div><div class="kpi-value">฿' + fmt0(gPl) + '</div><div class="kpi-sub">Plan setup</div></div>' +
     '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดขายรวม</div><div class="kpi-value">฿' + fmt0(gT) + '</div><div class="kpi-sub">ทั้ง 3 สาขา</div></div>';
 
+  // Per-branch daily totals
   const days = Object.keys(byDate).sort();
+  const branchDailyByDate = {};
+  BRANCHES.forEach(b => { branchDailyByDate[b.id] = {}; days.forEach(d => { branchDailyByDate[b.id][d] = 0; }); });
+  BRANCHES.forEach(b => b.employees.forEach(e => {
+    const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
+    for (const d in es) {
+      if (!inDateRange(d, r.from, r.to)) continue;
+      const tot = (+es[d].pt||0) + (+es[d].member||0) + (+es[d].plan||0);
+      if (branchDailyByDate[b.id][d] === undefined) branchDailyByDate[b.id][d] = 0;
+      branchDailyByDate[b.id][d] += tot;
+    }
+  }));
+
+  const branchPalette = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
+
   if (ovDailyChart) ovDailyChart.destroy();
   ovDailyChart = new Chart(document.getElementById('ovDailyChart'), {
     type: 'bar',
-    data: { labels: days, datasets: [
-      { label: '💪 PT', data: days.map(d => byDate[d].pt), backgroundColor: '#DC2626' },
-      { label: '🎫 MEMBER', data: days.map(d => byDate[d].member), backgroundColor: '#1F1F1F' },
-      { label: '📋 PLAN', data: days.map(d => byDate[d].plan), backgroundColor: '#D97706' }
-    ]},
+    data: { labels: days, datasets: BRANCHES.map((b, i) => ({
+      label: b.emoji + ' สาขา' + b.name,
+      data: days.map(d => branchDailyByDate[b.id][d] || 0),
+      backgroundColor: branchPalette[i % branchPalette.length],
+      borderRadius: 4
+    }))},
     options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend: { position:'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: v => '฿'+fmtInt(v) }, grid: { color:'#F3F4F6' } } }
+      plugins: { legend: { position:'bottom', labels: { padding:10, font:{ size:11, weight:600 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#1F1F1F' } },
+        y: { beginAtZero: true, ticks: { callback: v => '฿'+fmtInt(v), font: { size: 10 } }, grid: { color:'#F3F4F6' } }
+      }
     }
   });
 
   if (ovBranchChart) ovBranchChart.destroy();
   ovBranchChart = new Chart(document.getElementById('ovBranchChart'), {
     type: 'bar',
-    data: { labels: BRANCHES.map(b => 'สาขา' + b.name), datasets: [
+    data: { labels: BRANCHES.map(b => b.emoji + ' สาขา' + b.name), datasets: [
       { label: '💪 PT', data: BRANCHES.map(b => branchTotals[b.id].pt), backgroundColor: '#DC2626', borderRadius: 6 },
       { label: '🎫 MEMBER', data: BRANCHES.map(b => branchTotals[b.id].member), backgroundColor: '#1F1F1F', borderRadius: 6 },
       { label: '📋 PLAN', data: BRANCHES.map(b => branchTotals[b.id].plan), backgroundColor: '#D97706', borderRadius: 6 }
     ]},
     options: { responsive:true, maintainAspectRatio:false,
-      plugins: { legend: { position:'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: v => '฿'+fmtInt(v) }, grid: { color:'#F3F4F6' } } }
+      plugins: { legend: { position:'bottom', labels: { padding:10, font:{ size:11, weight:600 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 12, weight: 700 }, color: '#1F1F1F' } },
+        y: { beginAtZero: true, ticks: { callback: v => '฿'+fmtInt(v), font: { size: 10 } }, grid: { color:'#F3F4F6' } }
+      }
     }
   });
 }
