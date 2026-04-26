@@ -1750,6 +1750,7 @@ function hsCollectRows() {
         const pt = +es[d].pt||0, m = +es[d].member||0, pl = +es[d].plan||0;
         rows.push({ date: d, branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
           empId: e.id, empName: e.name, position: e.position || 'Sale',
+          team: e.team || 'A', photo: e.photo || '', note: e.note || '',
           pt: pt, member: m, plan: pl, total: pt + m + pl });
       }
     });
@@ -1816,38 +1817,50 @@ function renderHistoryView() {
         '<thead><tr>' +
         '<th>วันที่</th>' +
         '<th>พนักงาน</th>' +
+        '<th>รหัส</th>' +
         '<th>ตำแหน่ง</th>' +
         '<th>ทีม</th>' +
         '<th class="num">💪 PT</th>' +
         '<th class="num">🎫 MEMBER</th>' +
         '<th class="num">📋 PLAN</th>' +
         '<th class="num">💰 รวม</th>' +
+        '<th>📋 รายละเอียดการขาย</th>' +
         '<th></th>' +
         '</tr></thead>' +
         '<tbody>' +
         brRows.map(x => {
           const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
-          const team = (x.team || (empById(x.empId) || {}).team || 'A');
+          const team = x.team || 'A';
           const teamBg = team === 'A' ? '#FEF3C7' : '#DBEAFE';
           const teamFg = team === 'A' ? '#92400E' : '#1E40AF';
+          const av = x.photo
+            ? '<img src="' + x.photo + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid ' + accent + '">'
+            : '<div style="width:32px;height:32px;border-radius:50%;background:' + avatarColor(x.empId) + ';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">' + avatarInitials(x.empName) + '</div>';
+          const noteEsc = (x.note || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+          const noteCell = x.note
+            ? '<span title="' + noteEsc + '" style="display:inline-block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;color:#1E40AF;font-size:12px">' + noteEsc + '</span>'
+            : '<span style="color:var(--gray-text);font-size:11px">—</span>';
           return '<tr>' +
             '<td><strong>' + x.date + '</strong></td>' +
-            '<td>' + x.empName + '</td>' +
+            '<td><div style="display:flex;align-items:center;gap:8px">' + av + '<span>' + x.empName + '</span></div></td>' +
+            '<td style="font-family:monospace;font-size:11px;color:var(--gray-text)">' + x.empId + '</td>' +
             '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
             '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;background:' + teamBg + ';color:' + teamFg + '">' + (team === 'A' ? '🅰' : '🅱') + ' ' + team + '</span></td>' +
             '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
+            '<td>' + noteCell + '</td>' +
             '<td><button class="hs-del" data-bid="' + x.branchId + '" data-eid="' + x.empId + '" data-date="' + x.date + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
             '</tr>';
         }).join('') +
         '<tr style="background:#FAFAFA;font-weight:800">' +
-        '<td colspan="4" style="text-align:right">รวมสาขา' + b.name + '</td>' +
+        '<td colspan="5" style="text-align:right">รวมสาขา' + b.name + '</td>' +
         '<td class="num" style="color:#DC2626">฿' + fmt0(sP) + '</td>' +
         '<td class="num">฿' + fmt0(sM) + '</td>' +
         '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
         '<td class="num">฿' + fmt0(sT) + '</td>' +
+        '<td></td>' +
         '<td></td>' +
         '</tr>' +
         '</tbody></table></div>';
