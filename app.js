@@ -1012,7 +1012,7 @@ function renderOverviewView() {
       kpiHtml += '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid ' + accent + ';border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04)">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">' +
         '<div style="font-size:13px;font-weight:800;color:var(--black)"><span style="font-size:16px">' + b.emoji + '</span> สาขา' + b.name + '</div>' +
-        '<div style="font-size:14px;font-weight:800;color:' + accent + '">฿' + fmt0(bt.total) + '</div>' +
+        '<div style="font-size:14px;font-weight:800;color:' + accent + '" title="PT + MEM">฿' + fmt0(bt.pt + bt.member) + '</div>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
         '<div style="background:#FEF2F2;border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;color:#991B1B">💪 PT</div><div style="font-size:13px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(bt.pt) + '</div></div>' +
@@ -1024,7 +1024,7 @@ function renderOverviewView() {
     kpiHtml += '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);border-radius:12px;padding:14px 16px;color:#fff;box-shadow:0 2px 8px rgba(220,38,38,0.25)">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">' +
       '<div style="font-size:13px;font-weight:800">💰 รวมทั้งหมด</div>' +
-      '<div style="font-size:14px;font-weight:800">฿' + fmt0(gT) + '</div>' +
+      '<div style="font-size:14px;font-weight:800" title="PT + MEM">฿' + fmt0(gP + gM) + '</div>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' +
       '<div style="background:rgba(255,255,255,0.18);border-radius:8px;padding:8px 10px"><div style="font-size:10px;font-weight:700;opacity:0.9">💪 PT</div><div style="font-size:13px;font-weight:800;margin-top:2px">฿' + fmt0(gP) + '</div></div>' +
