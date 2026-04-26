@@ -67,9 +67,26 @@ let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
 
-// chartjs-plugin-datalabels auto-registers globally; disable by default and opt-in per chart
+// chartjs-plugin-datalabels: enable on every chart with sensible defaults
 if (typeof Chart !== 'undefined') {
-  Chart.defaults.set('plugins.datalabels', { display: false });
+  Chart.defaults.set('plugins.datalabels', {
+    display: ctx => {
+      const v = ctx.dataset.data[ctx.dataIndex];
+      const n = typeof v === 'object' && v !== null ? v.y : v;
+      return typeof n === 'number' && n > 0;
+    },
+    color: '#1F1F1F',
+    font: { size: 10, weight: 700 },
+    anchor: ctx => ctx.chart.options.indexAxis === 'y' ? 'end' : 'end',
+    align:  ctx => ctx.chart.options.indexAxis === 'y' ? 'right' : 'top',
+    offset: 4,
+    clamp: true,
+    formatter: v => {
+      const n = typeof v === 'object' && v !== null ? v.y : v;
+      if (typeof n !== 'number' || !n) return '';
+      return '฿' + (typeof fmtShort === 'function' ? fmtShort(n) : n);
+    }
+  });
 }
 
 let BRANCH_COLORS = loadJSON(STORAGE_BRANCH_COLORS, {});
