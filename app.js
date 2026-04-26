@@ -67,6 +67,11 @@ let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
 
+// chartjs-plugin-datalabels auto-registers globally; disable by default and opt-in per chart
+if (typeof Chart !== 'undefined') {
+  Chart.defaults.set('plugins.datalabels', { display: false });
+}
+
 let BRANCH_COLORS = loadJSON(STORAGE_BRANCH_COLORS, {});
 function branchColor(bid) {
   if (BRANCH_COLORS[bid]) return BRANCH_COLORS[bid];
@@ -1185,8 +1190,16 @@ function renderSummaryChartView() {
           { label: '📋 PLAN', data: pln, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
         ]},
         options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+          layout: { padding: { top: 22 } },
           plugins: { legend: { position: 'bottom', labels: { padding: 10, font: { size: 10, weight: 600 } } },
-            tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+            tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
+            datalabels: {
+              display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+              anchor: 'end', align: 'end', offset: 2,
+              color: '#1F1F1F', font: { size: 9, weight: 700 },
+              formatter: v => '฿' + fmtShort(v)
+            }
+          },
           scales: {
             x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
             y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
@@ -1208,8 +1221,16 @@ function renderSummaryChartView() {
         ]},
         options: {
           indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+          layout: { padding: { right: 56 } },
           plugins: { legend: { display: false },
-            tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } } },
+            tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } },
+            datalabels: {
+              display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+              anchor: 'end', align: 'right', offset: 6,
+              color: '#1F1F1F', font: { size: 11, weight: 700 },
+              formatter: v => '฿' + fmt0(v)
+            }
+          },
           scales: {
             x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
             y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 11 } }, grid: { display: false } }
