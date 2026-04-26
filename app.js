@@ -1416,8 +1416,6 @@ function saveBranchChart(branchId, fmt, silent) {
 }
 
 // ===== History View =====
-let hsBranchChart = null;
-
 function hsGetRange() {
   const mode = document.getElementById('hsMode') ? document.getElementById('hsMode').value : 'single';
   if (mode === 'single') {
@@ -1488,37 +1486,6 @@ function renderHistoryView() {
     (document.getElementById('hsBranch') && document.getElementById('hsBranch').value ? ' · <strong>สาขา' + getBranch(document.getElementById('hsBranch').value).name + '</strong>' : '');
 
   const rows = hsCollectRows();
-
-  let sP=0, sM=0, sPl=0;
-  const uniqEmp = new Set(), uniqDate = new Set();
-  rows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; uniqEmp.add(x.empId); uniqDate.add(x.date); });
-  const sT = sP + sM + sPl;
-  const kpiEl = document.getElementById('hsKpis');
-  if (kpiEl) kpiEl.innerHTML =
-    '<div class="kpi-card pt"><div class="kpi-icon">💪</div><div class="kpi-label">ยอด PT</div><div class="kpi-value">฿' + fmt0(sP) + '</div><div class="kpi-sub">' + uniqEmp.size + ' คน · ' + uniqDate.size + ' วัน</div></div>' +
-    '<div class="kpi-card member"><div class="kpi-icon">🎫</div><div class="kpi-label">ยอด MEMBER</div><div class="kpi-value">฿' + fmt0(sM) + '</div><div class="kpi-sub">ในช่วงที่เลือก</div></div>' +
-    '<div class="kpi-card plan"><div class="kpi-icon">📋</div><div class="kpi-label">Plan SETUP</div><div class="kpi-value">฿' + fmt0(sPl) + '</div><div class="kpi-sub">ในช่วงที่เลือก</div></div>' +
-    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">รวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(sT) + '</div><div class="kpi-sub">' + rows.length + ' รายการ</div></div>';
-
-  const branchData = {};
-  BRANCHES.forEach(b => { branchData[b.id] = { pt:0, member:0, plan:0 }; });
-  rows.forEach(x => { branchData[x.branchId].pt += x.pt; branchData[x.branchId].member += x.member; branchData[x.branchId].plan += x.plan; });
-  const ctx = document.getElementById('hsBranchChart');
-  if (hsBranchChart) { try { hsBranchChart.destroy(); } catch(e){} hsBranchChart = null; }
-  if (ctx) {
-    hsBranchChart = new Chart(ctx, {
-      type: 'bar',
-      data: { labels: BRANCHES.map(b => b.emoji + ' ' + b.name), datasets: [
-        { label: '💪 PT', data: BRANCHES.map(b => branchData[b.id].pt), backgroundColor: '#DC2626', borderRadius: 6 },
-        { label: '🎫 MEMBER', data: BRANCHES.map(b => branchData[b.id].member), backgroundColor: '#1F1F1F', borderRadius: 6 },
-        { label: '📋 PLAN', data: BRANCHES.map(b => branchData[b.id].plan), backgroundColor: '#D97706', borderRadius: 6 }
-      ]},
-      options: { responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
-        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, ticks: { callback: v => '฿' + fmtShort(v) }, grid: { color: '#F3F4F6' } } }
-      }
-    });
-  }
 
   const cBadge = document.getElementById('hsCountBadge');
   if (cBadge) cBadge.textContent = '(' + rows.length + ' รายการ)';
