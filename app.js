@@ -1305,10 +1305,10 @@ function renderSummaryChartView() {
 
   BRANCHES.forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t }; })
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t }; })
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const totA = empsA.reduce((s, r) => s + r.total, 0);
     const totB = empsB.reduce((s, r) => s + r.total, 0);
@@ -1407,10 +1407,10 @@ function renderSummaryChartView() {
 
   BRANCHES.forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t }; })
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'B', ...t }; })
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'B', ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const all = empsA.concat(empsB);
     if (!all.length) return;
@@ -1661,7 +1661,8 @@ function saveBranchChart(branchId, fmt, silent) {
   let totA = 0, totB = 0;
   br.employees.forEach(e => {
     const t = empDailyTotals(branchId, e.id);
-    if ((e.team || 'A') === 'A') totA += t.total; else totB += t.total;
+    const sub = t.pt + t.member;
+    if ((e.team || 'A') === 'A') totA += sub; else totB += sub;
   });
 
   const headerH = 130;
