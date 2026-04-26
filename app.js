@@ -40,6 +40,8 @@ const SEED_DAILY = {
 const STORAGE_BRANCHES = 'station24_branches_v2';
 const STORAGE_DAILY = 'station24_daily_v1';
 const STORAGE_COLORS = 'station24_chart_colors_v1';
+const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
+const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 
 const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
 const CHART_COLOR_PRESETS = [
@@ -64,6 +66,15 @@ let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
   ['pt','member','plan'].forEach(k => { if (!CHART_COLORS[k]) CHART_COLORS[k] = DEFAULT_CHART_COLORS[k]; });
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
+
+let BRANCH_COLORS = loadJSON(STORAGE_BRANCH_COLORS, {});
+function branchColor(bid) {
+  if (BRANCH_COLORS[bid]) return BRANCH_COLORS[bid];
+  const idx = BRANCHES.findIndex(b => b.id === bid);
+  return DEFAULT_BRANCH_PALETTE[(idx >= 0 ? idx : 0) % DEFAULT_BRANCH_PALETTE.length];
+}
+function setBranchColor(bid, hex) { BRANCH_COLORS[bid] = hex; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
+function resetBranchColors() { BRANCH_COLORS = {}; saveJSON(STORAGE_BRANCH_COLORS, BRANCH_COLORS); }
 
 BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; }));
 BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
@@ -874,15 +885,50 @@ function renderOverviewView() {
     }
   }));
 
-  const branchPalette = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
+  // Render per-branch color picker into the dedicated container
+  const colorBox = document.getElementById('ovBranchColors');
+  if (colorBox) {
+    colorBox.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+      '<div style="font-size:13px;font-weight:700"><span>🎨</span> ปรับสีสาขา (กราฟภาพรวม)</div>' +
+      '<button type="button" id="ovColorReset" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700">↺ รีเซ็ตสีเริ่มต้น</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+      BRANCHES.map(b => {
+        const c = branchColor(b.id);
+        return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--black);background:#FAFAFA;padding:6px 12px;border-radius:8px;border:1px solid var(--gray-line)">' +
+          b.emoji + ' ' + b.name +
+          ' <input type="color" data-ov-bid="' + b.id + '" value="' + c + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
+          '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" data-ov-bhex="' + b.id + '">' + c.toUpperCase() + '</span></label>';
+      }).join('') +
+      '</div>';
+
+    colorBox.querySelectorAll('input[data-ov-bid]').forEach(inp => {
+      inp.oninput = e => {
+        const bid = inp.dataset.ovBid;
+        setBranchColor(bid, e.target.value);
+        const hexEl = colorBox.querySelector('[data-ov-bhex="' + bid + '"]');
+        if (hexEl) hexEl.textContent = e.target.value.toUpperCase();
+        if (ovDailyChart && ovDailyChart.data && ovDailyChart.data.datasets) {
+          const idx = BRANCHES.findIndex(b => b.id === bid);
+          if (idx >= 0 && ovDailyChart.data.datasets[idx]) {
+            ovDailyChart.data.datasets[idx].backgroundColor = e.target.value;
+            ovDailyChart.update('none');
+          }
+        }
+      };
+    });
+    const rstBtn = colorBox.querySelector('#ovColorReset');
+    if (rstBtn) rstBtn.onclick = () => { resetBranchColors(); renderOverviewView(); showToast('↺ คืนค่าสีสาขา'); };
+  }
 
   if (ovDailyChart) ovDailyChart.destroy();
   ovDailyChart = new Chart(document.getElementById('ovDailyChart'), {
     type: 'bar',
-    data: { labels: days, datasets: BRANCHES.map((b, i) => ({
+    data: { labels: days, datasets: BRANCHES.map(b => ({
       label: b.emoji + ' สาขา' + b.name,
       data: days.map(d => branchDailyByDate[b.id][d] || 0),
-      backgroundColor: branchPalette[i % branchPalette.length],
+      backgroundColor: branchColor(b.id),
       borderRadius: 4
     }))},
     options: { responsive:true, maintainAspectRatio:false,
