@@ -946,6 +946,20 @@ function renderSummaryChartView() {
     '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(gP+gM+gPl) + '</div><div class="kpi-sub">PT+MEMBER+PLAN</div></div>' +
     '</div>';
 
+  // Branch comparison chart (each branch as a separate group)
+  html += '<div class="card" style="margin-bottom:20px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
+    '<h3 style="margin:0;border:none;padding:0"><span>🏢</span> เปรียบเทียบยอดแต่ละสาขา</h3>' +
+    '<div style="display:flex;gap:6px">' +
+    '<button type="button" class="sc-save-btn" data-bid="__compare__" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
+    '<button type="button" class="sc-save-btn" data-bid="__compare__" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
+    '</div></div>' +
+    '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px">📊 ยอดแยก 3 หมวด รายสาขา</div>' +
+    '<div class="chart-wrap" style="height:340px;margin-bottom:14px"><canvas id="scBranchCompare"></canvas></div>' +
+    '<div style="font-size:11px;color:var(--gray-text);font-weight:600;margin-bottom:6px;padding-top:10px;border-top:1px dashed var(--gray-line)">💰 ยอดรวมรายสาขา (เรียงมาก → น้อย)</div>' +
+    '<div class="chart-wrap" style="height:' + Math.max(160, BRANCHES.length * 56) + 'px"><canvas id="scBranchCompareTotal"></canvas></div>' +
+    '</div>';
+
   // Color customizer
   html += '<div class="card" style="margin-bottom:16px;padding:12px 16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
@@ -998,6 +1012,60 @@ function renderSummaryChartView() {
   });
 
   container.innerHTML = html;
+
+  // Branch comparison chart
+  const cmpLabels = BRANCHES.map(b => b.emoji + ' ' + b.name);
+  const cmpPT = BRANCHES.map(b => branchDailyTotals(b.id).pt);
+  const cmpMem = BRANCHES.map(b => branchDailyTotals(b.id).member);
+  const cmpPlan = BRANCHES.map(b => branchDailyTotals(b.id).plan);
+  const cmpCtx = document.getElementById('scBranchCompare');
+  if (cmpCtx && BRANCHES.length) {
+    scBranchCharts['cmp_grouped'] = new Chart(cmpCtx, {
+      type: 'bar',
+      data: { labels: cmpLabels, datasets: [
+        { label: '💪 PT', data: cmpPT, backgroundColor: CHART_COLORS.pt, borderRadius: 6 },
+        { label: '🎫 MEMBER', data: cmpMem, backgroundColor: CHART_COLORS.member, borderRadius: 6 },
+        { label: '📋 PLAN', data: cmpPlan, backgroundColor: CHART_COLORS.plan, borderRadius: 6 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11, weight: 600 } } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 700, size: 12 } } },
+          y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
+        }
+      }
+    });
+  }
+
+  // Branch total comparison (horizontal bar, sorted)
+  const cmpSorted = BRANCHES.map(b => {
+    const t = branchDailyTotals(b.id);
+    return { name: b.emoji + ' ' + b.name, total: t.total };
+  }).sort((a, b) => b.total - a.total);
+  const cmpTLabels = cmpSorted.map(x => x.name);
+  const cmpTotals = cmpSorted.map(x => x.total);
+  const cmpMaxT = Math.max(...cmpTotals, 0);
+  const cmpTCtx = document.getElementById('scBranchCompareTotal');
+  if (cmpTCtx && BRANCHES.length) {
+    scBranchCharts['cmp_total'] = new Chart(cmpTCtx, {
+      type: 'bar',
+      data: { labels: cmpTLabels, datasets: [
+        { label: '💰 ยอดรวม', data: cmpTotals,
+          backgroundColor: cmpTotals.map(v => v === cmpMaxT && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member),
+          borderRadius: 6, barThickness: 32 }
+      ]},
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } } },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 10 }, color: '#4B5563' }, grid: { color: '#F3F4F6' } },
+          y: { ticks: { color: '#1F1F1F', font: { weight: 700, size: 12 } }, grid: { display: false } }
+        }
+      }
+    });
+  }
 
   BRANCHES.forEach(br => {
     const emps = br.employees.map(e => {
@@ -1070,7 +1138,7 @@ function renderSummaryChartView() {
     Object.keys(scBranchCharts).forEach(k => {
       const ch = scBranchCharts[k];
       if (!ch || !ch.data || !ch.data.datasets) return;
-      if (k.startsWith('t_')) {
+      if (k.startsWith('t_') || k === 'cmp_total') {
         const ds = ch.data.datasets[0];
         if (ds && Array.isArray(ds.data)) {
           const mx = Math.max(...ds.data, 0);
@@ -1250,15 +1318,23 @@ function exportToExcel() {
 
 // ===== saveBranchChart (for Summary view) =====
 function saveBranchChart(branchId, fmt, silent) {
-  const chart = scBranchCharts['g_' + branchId];
-  const chartT = scBranchCharts['t_' + branchId];
-  const br = getBranch(branchId);
-  if (!chart || !br) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
+  const isCompare = branchId === '__compare__';
+  const chart = isCompare ? scBranchCharts['cmp_grouped'] : scBranchCharts['g_' + branchId];
+  const chartT = isCompare ? scBranchCharts['cmp_total'] : scBranchCharts['t_' + branchId];
+  const br = isCompare ? null : getBranch(branchId);
+  if (!chart || (!isCompare && !br)) { if (!silent) showToast('⚠ ไม่พบกราฟ', true); return false; }
   const src = chart.canvas;
   if (!src || !src.width || !src.height) { if (!silent) showToast('⚠ กราฟว่าง', true); return false; }
   const srcT = chartT ? chartT.canvas : null;
 
-  const bt = branchDailyTotals(branchId);
+  let bt;
+  if (isCompare) {
+    let p=0,m=0,pl=0;
+    BRANCHES.forEach(b => { const t = branchDailyTotals(b.id); p+=t.pt; m+=t.member; pl+=t.plan; });
+    bt = { pt:p, member:m, plan:pl, total:p+m+pl };
+  } else {
+    bt = branchDailyTotals(branchId);
+  }
   const headerH = 110;
   const footerH = 40;
   const pad = 20;
@@ -1281,7 +1357,7 @@ function saveBranchChart(branchId, fmt, silent) {
 
   ctx.fillStyle = '#DC2626';
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText(br.emoji + '  สาขา' + br.name, pad, 52);
+  ctx.fillText(isCompare ? '🏢  เปรียบเทียบยอดแต่ละสาขา' : (br.emoji + '  สาขา' + br.name), pad, 52);
 
   ctx.fillStyle = '#4B5563';
   ctx.font = '13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
@@ -1294,7 +1370,7 @@ function saveBranchChart(branchId, fmt, silent) {
     const yLabel = headerH + src.height + sectionGap - 4;
     ctx.fillStyle = '#0F0F0F';
     ctx.font = 'bold 13px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-    ctx.fillText('💰 ยอดรวมรายบุคคล', pad, yLabel);
+    ctx.fillText(isCompare ? '💰 ยอดรวมรายสาขา' : '💰 ยอดรวมรายบุคคล', pad, yLabel);
     const cxT = Math.round((W - srcT.width) / 2);
     ctx.drawImage(srcT, cxT, yLabel + labelH);
   }
@@ -1312,9 +1388,10 @@ function saveBranchChart(branchId, fmt, silent) {
   const dataURL = out.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
   const a = document.createElement('a');
   a.href = dataURL;
-  a.download = 'Station24_Chart_' + br.name + '_' + new Date().toISOString().slice(0,10) + '.' + ext;
+  const fname = isCompare ? 'เปรียบเทียบสาขา' : br.name;
+  a.download = 'Station24_Chart_' + fname + '_' + new Date().toISOString().slice(0,10) + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  if (!silent) showToast('✓ ดาวน์โหลด ' + br.name + '.' + ext);
+  if (!silent) showToast('✓ ดาวน์โหลด ' + fname + '.' + ext);
   return true;
 }
 
