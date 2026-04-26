@@ -39,6 +39,7 @@ const SEED_DAILY = {
 
 const STORAGE_BRANCHES = 'station24_branches_v2';
 const STORAGE_DAILY = 'station24_daily_v1';
+const STORAGE_LOG = 'station24_sales_log_v1';
 const STORAGE_COLORS = 'station24_chart_colors_v1';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
@@ -60,9 +61,36 @@ function loadJSON(key, fb) { try { const r = localStorage.getItem(key); if (r) r
 function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} }
 function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
+function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
+function nowHHMM() {
+  const d = new Date(); const p = n => String(n).padStart(2,'0');
+  return p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function logSale(bid, eid, date, pt, m, pl) {
+  LOG.push({ id: 'L' + Date.now() + Math.random().toString(36).slice(2,7),
+    branchId: bid, empId: eid, date: date, time: nowHHMM(),
+    pt: +pt || 0, member: +m || 0, plan: +pl || 0 });
+  saveLog();
+}
 
 let BRANCHES = loadJSON(STORAGE_BRANCHES, DEFAULT_BRANCHES);
 let DAILY    = loadJSON(STORAGE_DAILY, SEED_DAILY);
+let LOG      = loadJSON(STORAGE_LOG, []);
+// One-time backfill: reconstruct LOG entries from any pre-existing DAILY data
+if (LOG.length === 0) {
+  for (const bid in DAILY) {
+    for (const eid in DAILY[bid] || {}) {
+      for (const date in DAILY[bid][eid] || {}) {
+        const e = DAILY[bid][eid][date] || {};
+        const pt = +e.pt || 0, m = +e.member || 0, pl = +e.plan || 0;
+        if (pt || m || pl) {
+          LOG.push({ id: 'L' + date + '-' + eid, branchId: bid, empId: eid, date: date, time: '00:00', pt: pt, member: m, plan: pl });
+        }
+      }
+    }
+  }
+  if (LOG.length) saveJSON(STORAGE_LOG, LOG);
+}
 let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
 (function normalizeColors(){
   ['pt','member','plan'].forEach(k => { if (!CHART_COLORS[k]) CHART_COLORS[k] = DEFAULT_CHART_COLORS[k]; });
@@ -652,6 +680,7 @@ function renderBranchInline() {
         plan: (+prev.plan || 0) + pl
       };
       saveDaily();
+      logSale(bid, eid, date, pt, m, pl);
       renderBranchView();
       showToast('✓ เพิ่มยอด ฿' + fmt0(pt + m + pl) + ' · ' + empName(eid) + ' (' + date + ')');
     };
@@ -856,7 +885,9 @@ function saveDailyEntry() {
   if (!DAILY[activeBranch]) DAILY[activeBranch] = {};
   if (!DAILY[activeBranch][activeDailyEmp]) DAILY[activeBranch][activeDailyEmp] = {};
   DAILY[activeBranch][activeDailyEmp][date] = { pt: pt, member: m, plan: p };
-  saveDaily(); renderDailyHistory(activeDailyEmp);
+  saveDaily();
+  if (pt || m || p) logSale(activeBranch, activeDailyEmp, date, pt, m, p);
+  renderDailyHistory(activeDailyEmp);
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
   else if (currentView === 'ranking') renderRankingView();
@@ -1271,6 +1302,7 @@ function renderAddSalesView() {
       if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
       DAILY[bid][eid][date] = { pt, member: m, plan: pl };
       saveDaily();
+      if (pt || m || pl) logSale(bid, eid, date, pt, m, pl);
       renderAddSalesView();
       showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
     };
@@ -1621,6 +1653,7 @@ function renderRecordSalesView() {
       if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
       DAILY[bid][eid][date] = { pt, member: m, plan: pl };
       saveDaily();
+      if (pt || m || pl) logSale(bid, eid, date, pt, m, pl);
       renderRecordSalesView();
       showToast('✓ บันทึก ' + empName(eid) + ' วันที่ ' + date);
     };
@@ -1770,23 +1803,26 @@ function hsCollectRows() {
   const r = hsGetRange();
   const branchFilter = document.getElementById('hsBranch') ? document.getElementById('hsBranch').value : '';
   const rows = [];
-  BRANCHES.forEach(br => {
-    if (branchFilter && br.id !== branchFilter) return;
-    br.employees.forEach(e => {
-      const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
-      for (const d in es) {
-        if (r.from && d < r.from) continue;
-        if (r.to && d > r.to) continue;
-        const pt = +es[d].pt||0, m = +es[d].member||0, pl = +es[d].plan||0;
-        rows.push({ date: d, branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
-          empId: e.id, empName: e.name, position: e.position || 'Sale',
-          team: e.team || 'A', photo: e.photo || '', note: e.note || '',
-          pt: pt, member: m, plan: pl, total: pt + m + pl });
-      }
+  LOG.forEach(en => {
+    if (branchFilter && en.branchId !== branchFilter) return;
+    if (r.from && en.date < r.from) return;
+    if (r.to && en.date > r.to) return;
+    const br = BRANCHES.find(b => b.id === en.branchId);
+    if (!br) return;
+    const e = br.employees.find(x => x.id === en.empId) || {};
+    const pt = +en.pt || 0, m = +en.member || 0, pl = +en.plan || 0;
+    rows.push({
+      logId: en.id, date: en.date, time: en.time || '',
+      branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
+      empId: en.empId, empName: e.name || en.empId,
+      position: e.position || 'Sale', team: e.team || 'A',
+      photo: e.photo || '', note: e.note || '',
+      pt: pt, member: m, plan: pl, total: pt + m + pl
     });
   });
   rows.sort((a, b) => {
     if (a.date !== b.date) return b.date < a.date ? -1 : 1;
+    if ((a.time || '') !== (b.time || '')) return (a.time || '') < (b.time || '') ? 1 : -1;
     if (a.branchName !== b.branchName) return a.branchName < b.branchName ? -1 : 1;
     return a.empName < b.empName ? -1 : 1;
   });
@@ -1846,6 +1882,7 @@ function renderHistoryView() {
         '<table class="history-table">' +
         '<thead><tr>' +
         '<th>วันที่</th>' +
+        '<th>เวลา</th>' +
         '<th>พนักงาน</th>' +
         '<th>รหัส</th>' +
         '<th>ตำแหน่ง</th>' +
@@ -1872,6 +1909,7 @@ function renderHistoryView() {
             : '<span style="color:var(--gray-text);font-size:11px">—</span>';
           return '<tr>' +
             '<td><strong>' + x.date + '</strong></td>' +
+            '<td style="font-family:monospace;font-size:12px;color:var(--gray-text)">' + (x.time || '—') + '</td>' +
             '<td><div style="display:flex;align-items:center;gap:8px">' + av + '<span>' + x.empName + '</span></div></td>' +
             '<td style="font-family:monospace;font-size:11px;color:var(--gray-text)">' + x.empId + '</td>' +
             '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
@@ -1881,11 +1919,11 @@ function renderHistoryView() {
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
             '<td>' + noteCell + '</td>' +
-            '<td><button class="hs-del" data-bid="' + x.branchId + '" data-eid="' + x.empId + '" data-date="' + x.date + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
+            '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
             '</tr>';
         }).join('') +
         '<tr style="background:#FAFAFA;font-weight:800">' +
-        '<td colspan="5" style="text-align:right">รวมสาขา' + b.name + '</td>' +
+        '<td colspan="6" style="text-align:right">รวมสาขา' + b.name + '</td>' +
         '<td class="num" style="color:#DC2626">฿' + fmt0(sP) + '</td>' +
         '<td class="num">฿' + fmt0(sM) + '</td>' +
         '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
@@ -1907,13 +1945,23 @@ function renderHistoryView() {
 
   container.querySelectorAll('.hs-del').forEach(btn => {
     btn.onclick = () => {
-      const bid = btn.dataset.bid, eid = btn.dataset.eid, d = btn.dataset.date;
-      if (confirm('ลบยอดของ ' + empName(eid) + ' วันที่ ' + d + '?')) {
-        if (DAILY[bid] && DAILY[bid][eid]) delete DAILY[bid][eid][d];
+      const logId = btn.dataset.logid;
+      const idx = LOG.findIndex(x => x.id === logId);
+      if (idx < 0) { showToast('⚠ ไม่พบรายการ', true); return; }
+      const en = LOG[idx];
+      if (!confirm('ลบรายการนี้ของ ' + empName(en.empId) + ' วันที่ ' + en.date + ' (' + (en.time || '—') + ')?\nยอด ฿' + fmt0((+en.pt||0)+(+en.member||0)+(+en.plan||0)) + ' จะถูกหักออกจากยอดรวม')) return;
+      LOG.splice(idx, 1); saveLog();
+      // Subtract from DAILY aggregate
+      if (DAILY[en.branchId] && DAILY[en.branchId][en.empId] && DAILY[en.branchId][en.empId][en.date]) {
+        const d = DAILY[en.branchId][en.empId][en.date];
+        d.pt = Math.max(0, (+d.pt || 0) - (+en.pt || 0));
+        d.member = Math.max(0, (+d.member || 0) - (+en.member || 0));
+        d.plan = Math.max(0, (+d.plan || 0) - (+en.plan || 0));
+        if (!d.pt && !d.member && !d.plan) delete DAILY[en.branchId][en.empId][en.date];
         saveDaily();
-        renderHistoryView();
-        showToast('🗑 ลบ ' + d);
       }
+      renderHistoryView();
+      showToast('🗑 ลบรายการแล้ว');
     };
   });
 }
