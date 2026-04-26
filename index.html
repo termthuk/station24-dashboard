@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=20260427p">
+<link rel="stylesheet" href="styles.css?v=20260427q">
 </head>
 <body>
 
@@ -87,6 +87,17 @@
       <div class="sidebar-section" id="branchListSection">
         <div class="sidebar-heading">🏢 สาขา</div>
         <nav class="branch-nav" id="branchNav"></nav>
+        <div id="addBranchSection" style="display:none;margin-top:10px">
+          <button type="button" id="toggleAddBranchBtn" style="width:100%;padding:9px 12px;border:1px dashed var(--gray-line);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">➕ เพิ่มสาขา</button>
+          <div id="addBranchPanel" style="display:none;margin-top:8px;padding:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px">
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input type="text" id="sbBranchEmoji" placeholder="🏢" maxlength="3" style="width:48px;padding:7px;border:1px solid var(--gray-line);border-radius:6px;font-size:16px;text-align:center">
+              <input type="text" id="sbBranchCode" placeholder="รหัส" style="flex:1;min-width:0;padding:7px;border:1px solid var(--gray-line);border-radius:6px;font-size:12px;text-transform:uppercase">
+            </div>
+            <input type="text" id="sbBranchName" placeholder="ชื่อสาขา" style="width:100%;padding:7px;border:1px solid var(--gray-line);border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box">
+            <button type="button" id="sbAddBranchBtn" style="width:100%;padding:8px;border:none;border-radius:6px;background:var(--red);color:#fff;font-weight:700;cursor:pointer;font-size:12px">+ เพิ่มสาขา</button>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -345,6 +356,6 @@
 <div class="toast" id="toast"></div>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-<script src="app.js?v=20260427p"></script>
+<script src="app.js?v=20260427q"></script>
 </body>
 </html>

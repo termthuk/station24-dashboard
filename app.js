@@ -273,6 +273,43 @@ function renderMenuNav() {
 
 function renderSidebar() {
   const visibleBranches = BRANCHES.filter(b => canSeeBranch(b.id));
+  const addSec = document.getElementById('addBranchSection');
+  if (addSec) addSec.style.display = isAdmin() ? 'block' : 'none';
+  if (isAdmin()) {
+    const tBtn = document.getElementById('toggleAddBranchBtn');
+    const panel = document.getElementById('addBranchPanel');
+    if (tBtn && !tBtn.dataset.bound) {
+      tBtn.dataset.bound = '1';
+      tBtn.onclick = () => {
+        const open = panel.style.display !== 'none';
+        panel.style.display = open ? 'none' : 'block';
+        tBtn.textContent = open ? '➕ เพิ่มสาขา' : '✕ ปิด';
+      };
+    }
+    const addBtn = document.getElementById('sbAddBranchBtn');
+    if (addBtn && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.onclick = () => {
+        const emoji = (document.getElementById('sbBranchEmoji').value || '').trim() || '🏢';
+        const code = (document.getElementById('sbBranchCode').value || '').trim().toUpperCase();
+        const name = (document.getElementById('sbBranchName').value || '').trim();
+        if (!code || !name) { showToast('⚠ กรอกรหัสและชื่อสาขา', true); return; }
+        if (BRANCHES.some(b => b.code === code || b.id === 'br-' + code.toLowerCase())) { showToast('⚠ รหัสซ้ำ', true); return; }
+        const bid = 'br-' + code.toLowerCase();
+        BRANCHES.push({ id: bid, code: code, name: name, emoji: emoji, employees: [] });
+        DAILY[bid] = {};
+        saveBranches(); saveDaily();
+        document.getElementById('sbBranchEmoji').value = '';
+        document.getElementById('sbBranchCode').value = '';
+        document.getElementById('sbBranchName').value = '';
+        panel.style.display = 'none';
+        document.getElementById('toggleAddBranchBtn').textContent = '➕ เพิ่มสาขา';
+        activeBranch = bid;
+        setView('branch');
+        showToast('✓ เพิ่มสาขา ' + name);
+      };
+    }
+  }
   if(document.getElementById('branchNav'))document.getElementById('branchNav').innerHTML = visibleBranches.map(b => {
     const t = branchDailyTotals(b.id);
     return '<button class="branch-item ' + (b.id===activeBranch?'active':'') + '" data-id="' + b.id + '">' +
