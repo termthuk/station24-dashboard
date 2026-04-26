@@ -709,7 +709,6 @@ document.getElementById('exportBtn')?.addEventListener('click', () => {
 });
 
 if(document.getElementById('dateBadge'))document.getElementById('dateBadge').textContent = '📅 ' + new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
-setView('overview');
 
 // ===== Overview view =====
 let ovDailyChart = null;
@@ -1694,3 +1693,6 @@ function hsExportExcel() {
     ev.target.value = '';
   });
 })();
+
+// Initial view (must be after all let/const declarations to avoid TDZ)
+setView('overview');
