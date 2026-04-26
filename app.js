@@ -451,8 +451,10 @@ function renderBranchInline() {
   let html = '<div class="card">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
     '<h3 style="margin:0;border:none;padding:0"><span>📝</span> บันทึกยอดขาย — สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(' + br.employees.length + ' คน)</span></h3>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+    (isAdmin() ? '<button type="button" id="resetBranchSalesBtn" style="padding:7px 14px;border:1px solid #DC2626;background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#DC2626" title="ล้างยอดขายทั้งหมดของสาขานี้ (Admin)">🔄 รีเซตยอด</button>' : '') +
     '<button type="button" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' +
-    '</div>' +
+    '</div></div>' +
     '<div id="addEmpPanelInline" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;margin-bottom:14px">' +
     '<div style="font-size:13px;font-weight:700;color:var(--red-dark);margin-bottom:10px">เพิ่มพนักงานใหม่เข้าสาขา' + br.name + '</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
@@ -546,6 +548,21 @@ function renderBranchInline() {
       const open = p.style.display !== 'none';
       p.style.display = open ? 'none' : 'block';
       toggleBtn.textContent = open ? '⚙️ จัดการพนักงาน' : '✕ ปิด';
+    };
+  }
+
+  const resetBtn = document.getElementById('resetBranchSalesBtn');
+  if (resetBtn) {
+    resetBtn.onclick = () => {
+      if (!isAdmin()) { showToast('⚠ เฉพาะ Admin เท่านั้น', true); return; }
+      const cnt = Object.values(DAILY[br.id] || {}).reduce((n, days) => n + Object.keys(days || {}).length, 0);
+      if (!cnt) { showToast('⚠ ไม่มียอดให้รีเซต', true); return; }
+      const ans = prompt('⚠ จะลบยอดขายทั้งหมดของสาขา' + br.name + ' (' + cnt + ' รายการ) ออกถาวร\nการทำนี้ย้อนกลับไม่ได้\n\nพิมพ์ "RESET" เพื่อยืนยัน:');
+      if (ans !== 'RESET') { showToast('ยกเลิกการรีเซต', true); return; }
+      DAILY[br.id] = {};
+      saveDaily();
+      renderBranchView();
+      showToast('🔄 รีเซตยอด สาขา' + br.name + ' (' + cnt + ' รายการ)');
     };
   }
 
