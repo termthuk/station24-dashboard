@@ -1406,10 +1406,21 @@ function renderOverviewView() {
   renderOverviewEmpBreakdown(r);
 }
 
+// Number of calendar days covered by a date range (inclusive). Falls back to today
+// for open-ended ranges; min 1.
+function rangeDayCount(r) {
+  const today = new Date().toISOString().slice(0,10);
+  const from = r.from || today;
+  const to = r.to || today;
+  const ms = new Date(to + 'T00:00:00') - new Date(from + 'T00:00:00');
+  return Math.max(1, Math.round(ms / 86400000) + 1);
+}
+
 // Per-employee breakdown grouped by branch (Overview page) — full emp-card style
 function renderOverviewEmpBreakdown(r) {
   const box = document.getElementById('ovEmpBreakdown');
   if (!box) return;
+  const kpiTarget = rangeDayCount(r) * DAILY_QUOTA;
   let html = '';
   BRANCHES.forEach(b => {
     const rows = b.employees.map(e => {
@@ -1442,18 +1453,18 @@ function renderOverviewEmpBreakdown(r) {
         const pos = e.position || 'Sale';
         const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
         const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
-        const belowQuota = x.total < DAILY_QUOTA;
-        const shortfall = Math.max(DAILY_QUOTA - x.total, 0);
+        const belowQuota = x.total < kpiTarget;
+        const shortfall = Math.max(kpiTarget - x.total, 0);
         const cardStyle = belowQuota
           ? 'border:2px solid #DC2626;box-shadow:0 0 0 2px rgba(220,38,38,0.08)'
           : '';
         const nameStyle = belowQuota ? 'color:#DC2626' : '';
         const nameTitle = belowQuota
-          ? ' title="ยอดไม่ถึง ฿' + fmt0(DAILY_QUOTA) + ' (ยอด ฿' + fmt0(x.total) + ')"'
-          : '';
+          ? ' title="ยอดสะสมไม่ถึง KPI (ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.total) + ')"'
+          : ' title="ถึง KPI แล้ว · ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.total) + '"';
         const quotaBadge = belowQuota
-          ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(DAILY_QUOTA) + '</span></div>'
-          : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#166534;font-weight:700">✅ ถึงเป้า ฿' + fmt0(DAILY_QUOTA) + '</span><span style="color:#14532D;font-weight:800">ยอด ฿' + fmt0(x.total) + '</span></div>';
+          ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(kpiTarget) + '</span></div>'
+          : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">ยอด ฿' + fmt0(x.total) + '</span></div>';
         const rankBadge = i === 0 && x.total > 0
           ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px">🏆 #1</span>'
           : '';
