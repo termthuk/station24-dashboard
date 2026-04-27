@@ -561,8 +561,9 @@ function renderBranchInline() {
       const nameTitle = belowQuota
         ? ' title="ยังไม่ถึงยอดขั้นต่ำ ฿' + fmt0(DAILY_QUOTA) + '/วัน (วันนี้ ฿' + fmt0(todayPTMem) + ')"'
         : '';
+      const shortfall = Math.max(DAILY_QUOTA - todayPTMem, 0);
       const quotaBadge = belowQuota
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">🎯 เป้า ฿' + fmt0(DAILY_QUOTA) + '/วัน</span><span style="color:#7F1D1D;font-weight:800">วันนี้ ฿' + fmt0(todayPTMem) + '</span></div>'
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(DAILY_QUOTA) + '</span></div>'
         : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึงเป้า ฿' + fmt0(DAILY_QUOTA) + '/วัน</span><span style="color:#14532D;font-weight:800">วันนี้ ฿' + fmt0(todayPTMem) + '</span></div>';
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
