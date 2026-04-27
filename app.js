@@ -46,6 +46,7 @@ const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
+const KPI_THRESHOLD = 50000;
 
 const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
 const CHART_COLOR_PRESETS = [
@@ -1674,6 +1675,41 @@ function renderSummaryChartView() {
 
   container.innerHTML = html;
 
+  // Plugin to draw a KPI threshold line (e.g. 50,000) across the chart
+  const kpiLinePlugin = {
+    id: 'kpiLine',
+    afterDatasetsDraw(chart, _args, opts) {
+      const value = opts && opts.value;
+      if (!value) return;
+      const { ctx, chartArea, scales } = chart;
+      const yScale = scales.y;
+      if (!yScale || !chartArea) return;
+      const y = yScale.getPixelForValue(value);
+      if (y < chartArea.top || y > chartArea.bottom) return;
+      ctx.save();
+      ctx.strokeStyle = '#DC2626';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const label = '🎯 KPI ฿' + fmtShort(value);
+      ctx.font = 'bold 11px "Segoe UI","Noto Sans Thai",Arial,sans-serif';
+      const tw = ctx.measureText(label).width;
+      const pad = 6;
+      const boxX = chartArea.right - tw - pad * 2 - 4;
+      const boxY = y - 9;
+      ctx.fillStyle = '#DC2626';
+      ctx.fillRect(boxX, boxY, tw + pad * 2, 18);
+      ctx.fillStyle = '#fff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, boxX + pad, boxY + 9);
+      ctx.restore();
+    }
+  };
+
   // Plugin to draw team A/B background zones and divider on combined chart
   const teamZonePlugin = {
     id: 'teamZones',
@@ -1771,14 +1807,15 @@ function renderSummaryChartView() {
             color: '#1F1F1F', font: { size: 9, weight: 700 },
             formatter: v => '฿' + fmtShort(v)
           },
-          teamZones: { aCount: empsA.length, totalCount: all.length }
+          teamZones: { aCount: empsA.length, totalCount: all.length },
+          kpiLine: { value: KPI_THRESHOLD }
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
-          y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
+          y: { beginAtZero: true, suggestedMax: KPI_THRESHOLD * 1.1, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
         }
       },
-      plugins: [teamZonePlugin]
+      plugins: [teamZonePlugin, kpiLinePlugin]
     });
   });
 
