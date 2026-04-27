@@ -253,6 +253,25 @@ function avatarHTML(e, cls) {
   return '<div class="' + cls + '" style="background:' + avatarColor(e.id) + '">' + avatarInitials(e.name) + '</div>';
 }
 
+// Cumulative monthly KPI: starts at DAILY_QUOTA on day 1, +DAILY_QUOTA every day,
+// resets on the 1st of each month.
+function monthlyKPITarget(dateStr) {
+  const day = parseInt(dateStr.slice(8, 10), 10) || 1;
+  return day * DAILY_QUOTA;
+}
+function empMTDPTMem(bid, eid, asOfDate) {
+  const entries = (DAILY[bid] && DAILY[bid][eid]) || {};
+  const mk = asOfDate.slice(0, 7);
+  let pt = 0, mem = 0;
+  for (const d in entries) {
+    if (d.slice(0, 7) !== mk) continue;
+    if (d > asOfDate) continue;
+    pt += +entries[d].pt || 0;
+    mem += +entries[d].member || 0;
+  }
+  return pt + mem;
+}
+
 function empDailyTotals(bid, eid) {
   const entries = DAILY[bid] && DAILY[bid][eid] ? DAILY[bid][eid] : {};
   let pt=0, member=0, plan=0, train=0, days=0;
@@ -562,8 +581,9 @@ function renderBranchInline() {
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
       const todayTrain = +todayEntry.train || 0;
       const todayTotal = todayPT + todayMEM + todayPLAN;
-      const todayPTMem = todayPT + todayMEM;
-      const belowQuota = todayPTMem < DAILY_QUOTA;
+      const mtdPTMem = empMTDPTMem(br.id, e.id, today);
+      const kpiTarget = monthlyKPITarget(today);
+      const belowQuota = mtdPTMem < kpiTarget;
       const cardStyle = belowQuota
         ? 'position:relative;border:2px solid #DC2626;box-shadow:0 0 0 2px rgba(220,38,38,0.08)'
         : 'position:relative';
@@ -571,12 +591,12 @@ function renderBranchInline() {
         ? 'padding-right:60px;color:#9CA3AF'
         : 'padding-right:60px';
       const nameTitle = belowQuota
-        ? ' title="ยังไม่ถึงยอดขั้นต่ำ ฿' + fmt0(DAILY_QUOTA) + '/วัน (วันนี้ ฿' + fmt0(todayPTMem) + ')"'
-        : '';
-      const shortfall = Math.max(DAILY_QUOTA - todayPTMem, 0);
+        ? ' title="ยอดสะสมเดือนนี้ยังไม่ถึง KPI (ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(mtdPTMem) + ')"'
+        : ' title="ถึง KPI แล้ว · ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(mtdPTMem) + '"';
+      const shortfall = Math.max(kpiTarget - mtdPTMem, 0);
       const quotaBadge = belowQuota
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(DAILY_QUOTA) + '</span></div>'
-        : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึงเป้า ฿' + fmt0(DAILY_QUOTA) + '/วัน</span><span style="color:#14532D;font-weight:800">วันนี้ ฿' + fmt0(todayPTMem) + '</span></div>';
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(kpiTarget) + '</span></div>'
+        : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">เดือนนี้ ฿' + fmt0(mtdPTMem) + '</span></div>';
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
