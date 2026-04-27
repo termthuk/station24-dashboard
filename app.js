@@ -1031,16 +1031,18 @@ function renderRankingTrainerView() {
       listHtml = '<div class="ranking-empty">ยังไม่มีเทรนเนอร์ในสาขานี้</div>';
     } else {
       listHtml = trainers.map((r, i) => {
-        const rankClass = i < 3 && r.train > 0 ? 'r' + (i+1) : '';
-        const medal = i === 0 && r.train > 0 ? '🥇' : i === 1 && r.train > 0 ? '🥈' : i === 2 && r.train > 0 ? '🥉' : '#' + (i+1);
+        const inTop = r.train > 0 && i < 3;
+        const rankClass = inTop ? 'r' + (i+1) : '';
+        const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
+        const nameMedal = inTop ? ' <span style="font-size:18px;margin-left:4px">' + medal + '</span>' : '';
         const pct = maxTrain ? Math.round(r.train / maxTrain * 100) : 0;
         const av = r.emp.photo
           ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
           : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
         return '<div class="ranking-row ' + rankClass + '" style="position:relative">' +
-          '<div class="ranking-rank-badge">' + medal + '</div>' + av +
+          '<div class="ranking-rank-badge" style="font-size:' + (inTop ? '28px' : '22px') + '">' + medal + '</div>' + av +
           '<div class="ranking-info">' +
-          '<div class="ranking-name">' + r.emp.name + '</div>' +
+          '<div class="ranking-name">' + r.emp.name + nameMedal + '</div>' +
           '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
           '</div>' +
@@ -1085,16 +1087,18 @@ function renderRankingTrainerView() {
     combinedHtml += '<div class="ranking-empty">ยังไม่มีเทรนเนอร์</div>';
   } else {
     combinedHtml += all.map((r, i) => {
-      const rankClass = i < 3 && r.train > 0 ? 'r' + (i+1) : '';
-      const medal = i === 0 && r.train > 0 ? '🥇' : i === 1 && r.train > 0 ? '🥈' : i === 2 && r.train > 0 ? '🥉' : '#' + (i+1);
+      const inTop = r.train > 0 && i < 3;
+      const rankClass = inTop ? 'r' + (i+1) : '';
+      const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
+      const nameMedal = inTop ? ' <span style="font-size:18px;margin-left:4px">' + medal + '</span>' : '';
       const pct = maxAll ? Math.round(r.train / maxAll * 100) : 0;
       const av = r.emp.photo
         ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
         : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
       return '<div class="ranking-row ' + rankClass + '" style="position:relative">' +
-        '<div class="ranking-rank-badge">' + medal + '</div>' + av +
+        '<div class="ranking-rank-badge" style="font-size:' + (inTop ? '28px' : '22px') + '">' + medal + '</div>' + av +
         '<div class="ranking-info">' +
-        '<div class="ranking-name">' + r.emp.name + ' <span style="font-size:11px;font-weight:600;color:var(--gray-text);margin-left:4px">' + r.branch.emoji + ' ' + r.branch.name + '</span></div>' +
+        '<div class="ranking-name">' + r.emp.name + nameMedal + ' <span style="font-size:11px;font-weight:600;color:var(--gray-text);margin-left:4px">' + r.branch.emoji + ' ' + r.branch.name + '</span></div>' +
         '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
         '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
         '</div>' +
