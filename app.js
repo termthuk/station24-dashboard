@@ -77,6 +77,22 @@ let _suppressSync = false;
 let _pendingPush = {};
 let _pushTimer = null;
 
+// === Thai timezone helpers (Asia/Bangkok, UTC+7) ===
+// Use these everywhere "today" matters, so the dashboard agrees with Thailand's
+// calendar regardless of the device timezone (e.g. avoids the 00:00–07:00 gap
+// when toISOString() would still report yesterday's UTC date).
+function todayBKK() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+}
+function nowBKK() {
+  // Returns a Date whose LOCAL fields (getFullYear/getMonth/getDate/getHours/getMinutes)
+  // reflect Bangkok wall-clock time. Safe for calendar arithmetic via setDate/getDate;
+  // do NOT use .getTime()/UTC fields — those won't match real time.
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).formatToParts(new Date());
+  const g = t => parts.find(p => p.type === t).value;
+  return new Date(+g('year'), +g('month')-1, +g('day'), +g('hour'), +g('minute'), +g('second'));
+}
+
 function loadJSON(key, fb) { try { const r = localStorage.getItem(key); if (r) return JSON.parse(r); } catch(e){} return JSON.parse(JSON.stringify(fb)); }
 function saveJSON(key, v) {
   try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){}
@@ -99,7 +115,7 @@ function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
 function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
 function nowHHMM() {
-  const d = new Date(); const p = n => String(n).padStart(2,'0');
+  const d = nowBKK(); const p = n => String(n).padStart(2,'0');
   return p(d.getHours()) + ':' + p(d.getMinutes());
 }
 function logSale(bid, eid, date, pt, m, pl, train) {
@@ -593,7 +609,7 @@ function renderBranchView() {
 
 function renderBranchInline() {
   const br = getBranch(activeBranch);
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayBKK();
   const container = document.getElementById('branchEmpsContainer');
   if (!container) return;
 
@@ -1118,7 +1134,7 @@ function renderRankingTrainerView() {
 function openDailyModal(empId) {
   activeDailyEmp = empId; const e = empById(empId);
   if(document.getElementById('dailyModalEmpName'))document.getElementById('dailyModalEmpName').textContent = e.name + ' · ' + (e.position||'Sale');
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayBKK();
   if(document.getElementById('dailyDate'))document.getElementById('dailyDate').value = today;
   loadDailyIntoForm(empId, today); renderDailyHistory(empId);
   document.getElementById('dailyModal').classList.add('show');
@@ -1296,11 +1312,11 @@ document.getElementById('exportBtn')?.addEventListener('click', () => {
   wsSum['!cols'] = [{wch:14},{wch:22},{wch:18},{wch:14},{wch:16},{wch:16},{wch:16}];
   XLSX.utils.book_append_sheet(wb, wsSum, 'สรุป');
   wb.SheetNames.unshift(wb.SheetNames.pop());
-  XLSX.writeFile(wb, 'Station24_Sales_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  XLSX.writeFile(wb, 'Station24_Sales_' + todayBKK() + '.xlsx');
   showToast('✓ ดาวน์โหลด Excel');
 });
 
-if(document.getElementById('dateBadge'))document.getElementById('dateBadge').textContent = '📅 ' + new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
+if(document.getElementById('dateBadge'))document.getElementById('dateBadge').textContent = '📅 ' + new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric',timeZone:'Asia/Bangkok'});
 
 // ===== Overview view =====
 let ovDailyChart = null;
@@ -1316,7 +1332,7 @@ function ovRange() {
 }
 function ovRangeLabel(r) {
   if (!r.from && !r.to) return 'ทั้งหมด';
-  const fmt = d => d ? new Date(d).toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'}) : '';
+  const fmt = d => d ? new Date(d).toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric', timeZone:'Asia/Bangkok'}) : '';
   if (r.from && r.to) return fmt(r.from) + ' — ' + fmt(r.to);
   if (r.from) return 'ตั้งแต่ ' + fmt(r.from);
   return 'ถึง ' + fmt(r.to);
@@ -1465,7 +1481,7 @@ function renderOverviewView() {
 function renderOverviewEmpBreakdown(r) {
   const box = document.getElementById('ovEmpBreakdown');
   if (!box) return;
-  const todayDate = new Date().toISOString().slice(0, 10);
+  const todayDate = todayBKK();
   const kpiTarget = monthlyKPITarget(todayDate);
   let html = '';
   filteredBranches().forEach(b => {
@@ -1546,7 +1562,7 @@ document.getElementById('ovFrom')?.addEventListener('change', renderOverviewView
 document.getElementById('ovTo')?.addEventListener('change', renderOverviewView);
 document.getElementById('ovPreset')?.addEventListener('change', ev => {
   const v = ev.target.value; if (!v) return;
-  const t = new Date(); const p = n => String(n).padStart(2,'0');
+  const t = nowBKK(); const p = n => String(n).padStart(2,'0');
   const iso = d => d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
   let f = '', to = '';
   if (v === 'today') { f = iso(t); to = iso(t); }
@@ -1563,7 +1579,7 @@ document.getElementById('ovPreset')?.addEventListener('change', ev => {
 
 // Default overview date range = current month
 (function initOv(){
-  const t = new Date(); const p = n => String(n).padStart(2,'0');
+  const t = nowBKK(); const p = n => String(n).padStart(2,'0');
   const first = t.getFullYear() + '-' + p(t.getMonth()+1) + '-01';
   const last = t.getFullYear() + '-' + p(t.getMonth()+1) + '-' + p(new Date(t.getFullYear(), t.getMonth()+1, 0).getDate());
   if(document.getElementById('ovFrom'))document.getElementById('ovFrom').value = first;
@@ -1574,7 +1590,7 @@ document.getElementById('ovPreset')?.addEventListener('change', ev => {
 // ===== Employees view (formerly Add Sales) with inline input + position dropdown =====
 function renderAddSalesView() {
   renderSidebar();
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayBKK();
   const container = document.getElementById('addSalesContainer');
   container.innerHTML = BRANCHES.map(br => {
     if (!br.employees.length) {
@@ -1971,7 +1987,7 @@ function renderSummaryChartView() {
 // ===== Record Sales view (all employees with inline forms) =====
 function renderRecordSalesView() {
   renderSidebar();
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayBKK();
   const container = document.getElementById('recordSalesContainer');
   container.innerHTML = BRANCHES.map(br => {
     if (!br.employees.length) {
@@ -2078,7 +2094,7 @@ function exportToExcel() {
     XLSX.utils.book_append_sheet(wb, ws, 'รายวัน-' + br.name);
   });
 
-  const filename = 'Station24_Sales_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  const filename = 'Station24_Sales_' + todayBKK() + '.xlsx';
   XLSX.writeFile(wb, filename);
   showToast('✓ ดาวน์โหลด Excel เรียบร้อย');
 }
@@ -2140,7 +2156,7 @@ function saveBranchChart(branchId, fmt, silent) {
 
   ctx.fillStyle = '#9CA3AF';
   ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  const dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+  const dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric', timeZone:'Asia/Bangkok'});
   ctx.fillText('© Station 24 Fitness · บันทึก ' + dateStr, pad, H - footerH + 12);
   ctx.textAlign = 'right';
   ctx.fillText('station24-dashboard', W - pad, H - footerH + 12);
@@ -2151,7 +2167,7 @@ function saveBranchChart(branchId, fmt, silent) {
   const dataURL = out.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
   const a = document.createElement('a');
   a.href = dataURL;
-  a.download = 'Station24_Chart_' + br.name + '_' + new Date().toISOString().slice(0,10) + '.' + ext;
+  a.download = 'Station24_Chart_' + br.name + '_' + todayBKK() + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   if (!silent) showToast('✓ ดาวน์โหลด ' + br.name + '.' + ext);
   return true;
@@ -2170,7 +2186,7 @@ function hsGetRange() {
 }
 
 function hsRangeLabel(r) {
-  const fmt = d => new Date(d).toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric'});
+  const fmt = d => new Date(d).toLocaleDateString('th-TH', {year:'numeric', month:'short', day:'numeric', timeZone:'Asia/Bangkok'});
   if (!r.from && !r.to) return 'ทั้งหมด';
   if (r.mode === 'single' && r.from) return fmt(r.from);
   if (r.from && r.to) return fmt(r.from) + ' — ' + fmt(r.to);
@@ -2356,13 +2372,13 @@ function hsExportExcel() {
 }
 
 (function bindHistory(){
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayBKK();
   const dateEl = document.getElementById('hsDate');
   if (dateEl && !dateEl.value) dateEl.value = today;
   const fromEl = document.getElementById('hsFrom');
   const toEl = document.getElementById('hsTo');
   if (fromEl && !fromEl.value) {
-    const t = new Date(); const p = n => String(n).padStart(2,'0');
+    const t = nowBKK(); const p = n => String(n).padStart(2,'0');
     fromEl.value = t.getFullYear() + '-' + p(t.getMonth()+1) + '-01';
   }
   if (toEl && !toEl.value) toEl.value = today;
@@ -2379,7 +2395,7 @@ function hsExportExcel() {
   const preset = document.getElementById('hsPreset');
   if (preset) preset.addEventListener('change', ev => {
     const v = ev.target.value; if (!v) return;
-    const t = new Date(); const p = n => String(n).padStart(2,'0');
+    const t = nowBKK(); const p = n => String(n).padStart(2,'0');
     const iso = d => d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
     const modeEl = document.getElementById('hsMode');
     if (v === 'today' || v === 'yesterday') {
