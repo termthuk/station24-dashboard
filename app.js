@@ -552,16 +552,22 @@ function renderBranchInline() {
       const todayTotal = todayPT + todayMEM + todayPLAN;
       const todayPTMem = todayPT + todayMEM;
       const belowQuota = todayPTMem < DAILY_QUOTA;
+      const cardStyle = belowQuota
+        ? 'position:relative;border:2px solid #DC2626;box-shadow:0 0 0 2px rgba(220,38,38,0.08)'
+        : 'position:relative';
       const nameStyle = belowQuota
         ? 'padding-right:60px;color:#9CA3AF'
         : 'padding-right:60px';
       const nameTitle = belowQuota
         ? ' title="ยังไม่ถึงยอดขั้นต่ำ ฿' + fmt0(DAILY_QUOTA) + '/วัน (วันนี้ ฿' + fmt0(todayPTMem) + ')"'
         : '';
+      const quotaBadge = belowQuota
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">🎯 เป้า ฿' + fmt0(DAILY_QUOTA) + '/วัน</span><span style="color:#7F1D1D;font-weight:800">วันนี้ ฿' + fmt0(todayPTMem) + '</span></div>'
+        : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึงเป้า ฿' + fmt0(DAILY_QUOTA) + '/วัน</span><span style="color:#14532D;font-weight:800">วันนี้ ฿' + fmt0(todayPTMem) + '</span></div>';
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
-      return '<div class="emp-card" style="position:relative">' +
+      return '<div class="emp-card" style="' + cardStyle + '">' +
         '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
         '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
         '<div class="emp-card-header">' + avatarHTML(e) +
@@ -583,6 +589,7 @@ function renderBranchInline() {
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
         '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
+        quotaBadge +
         todayBadge +
         '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
         '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
