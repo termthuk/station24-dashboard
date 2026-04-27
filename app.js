@@ -194,8 +194,10 @@ function login(username, password) {
 function logout() { currentUser = null; saveSession(); }
 function isAdmin() { return currentUser && currentUser.role === 'admin'; }
 function isEditor() { return currentUser && currentUser.role === 'editor'; }
-function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
+function isViewer() { return currentUser && currentUser.role === 'viewer'; }
+function canSeeBranch(bid) { return isAdmin() || isViewer() || (isEditor() && currentUser.branchId === bid); }
 function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
+function canManage() { return isAdmin() || isEditor(); }
 
 function normalizeData() {
   BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
@@ -525,7 +527,7 @@ function renderBranchInline() {
     '<h3 style="margin:0;border:none;padding:0"><span>📝</span> บันทึกยอดขาย — สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:400;margin-left:6px">(' + br.employees.length + ' คน)</span></h3>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
     (isAdmin() ? '<button type="button" id="resetBranchSalesBtn" style="padding:7px 14px;border:1px solid #DC2626;background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#DC2626" title="ล้างยอดขายทั้งหมดของสาขานี้ (Admin)">🔄 รีเซตยอด</button>' : '') +
-    '<button type="button" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' +
+    (canEditBranch(br.id) ? '<button type="button" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' : '') +
     '</div></div>' +
     '<div id="addEmpPanelInline" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;margin-bottom:14px">' +
     '<div style="font-size:13px;font-weight:700;color:var(--red-dark);margin-bottom:10px">เพิ่มพนักงานใหม่เข้าสาขา' + br.name + '</div>' +
@@ -570,21 +572,40 @@ function renderBranchInline() {
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
+      const canEdit = canEditBranch(br.id);
+      const teamCtl = canEdit
+        ? '<select class="inline-team-select" data-eid="' + e.id + '" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--gray-line);background:' + teamColor.bg + ';color:' + teamColor.text + ';cursor:pointer">' +
+            '<option value="A"' + (team==='A'?' selected':'') + '>🅰 ทีม A</option>' +
+            '<option value="B"' + (team==='B'?' selected':'') + '>🅱 ทีม B</option>' +
+          '</select>'
+        : '<span style="display:inline-block;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;background:' + teamColor.bg + ';color:' + teamColor.text + '">' + (team === 'A' ? '🅰 ทีม A' : '🅱 ทีม B') + '</span>';
+      const posCtl = canEdit
+        ? '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+            '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
+            '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+          '</select>'
+        : '<span class="pos-chip ' + pc + '">' + (pos === 'Personal Trainer' ? '💪 PT' : '💼 Sale') + '</span>';
+      const editBtns = canEdit
+        ? '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
+          '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>'
+        : '';
+      const salesForm = canEdit
+        ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+            '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
+            quotaBadge + todayBadge +
+            '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
+            '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
+            '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
+            '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
+          '</div>'
+        : (quotaBadge + todayBadge);
       return '<div class="emp-card" style="' + cardStyle + '">' +
-        '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
-        '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
+        editBtns +
         '<div class="emp-card-header">' + avatarHTML(e) +
         '<div class="emp-card-info">' +
         '<div class="emp-card-name" style="' + nameStyle + '"' + nameTitle + '>' + e.name + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
-        '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-        '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
-        '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
-        '</select>' +
-        '<select class="inline-team-select" data-eid="' + e.id + '" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--gray-line);background:' + teamColor.bg + ';color:' + teamColor.text + ';cursor:pointer">' +
-        '<option value="A"' + (team==='A'?' selected':'') + '>🅰 ทีม A</option>' +
-        '<option value="B"' + (team==='B'?' selected':'') + '>🅱 ทีม B</option>' +
-        '</select>' +
+        posCtl + teamCtl +
         '</div>' +
         '<div class="emp-card-id">' + e.id + '</div></div></div>' +
         '<div class="emp-card-categories">' +
@@ -594,15 +615,7 @@ function renderBranchInline() {
         '<div class="emp-card-total">' +
         '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
-        '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-        '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
-        quotaBadge +
-        todayBadge +
-        '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
-        '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
-        '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
-        '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
-        '</div>' +
+        salesForm +
         '</div>';
     };
 
@@ -2027,7 +2040,7 @@ function renderHistoryView() {
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
-            '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
+            (canManage() ? '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' : '<td></td>') +
             '</tr>';
         }).join('') +
         '<tr style="background:#FAFAFA;font-weight:800">' +
@@ -2180,6 +2193,8 @@ function renderUsersView() {
     USERS.map((u, i) => {
       const roleBadge = u.role === 'admin'
         ? '<span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">🛡 ADMIN</span>'
+        : u.role === 'viewer'
+        ? '<span style="background:#F3F4F6;color:#1F2937;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">👁 VIEWER</span>'
         : '<span style="background:#DBEAFE;color:#1E40AF;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700">✏️ EDITOR</span>';
       const br = BRANCHES.find(b => b.id === u.branchId);
       const branchSel = u.role === 'editor'
@@ -2209,6 +2224,7 @@ function renderUsersView() {
     '<input type="text" id="newUserDisplay" placeholder="ชื่อแสดง" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
     '<select id="newUserRole" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
     '<option value="editor">✏️ Editor (เฉพาะสาขา)</option>' +
+    '<option value="viewer">👁 Viewer (ดูทุกสาขา)</option>' +
     '<option value="admin">🛡 Admin (ทุกสาขา)</option>' +
     '</select>' +
     '<select id="newUserBranch" style="padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' + branchOpts + '</select>' +
@@ -2277,7 +2293,7 @@ function renderUsersView() {
     if (!u || !p) { showToast('⚠ กรอกชื่อผู้ใช้และรหัสผ่าน', true); return; }
     if (USERS.some(x => x.username === u)) { showToast('⚠ ชื่อผู้ใช้ซ้ำ', true); return; }
     USERS.push({ username: u, password: p, displayName: d, role: role, branchId: role === 'editor' ? bid : null });
-    saveUsers(); renderUsersView(); showToast('✓ เพิ่มผู้ใช้ ' + u);
+    saveUsers(); renderUsersView(); showToast('✓ เพิ่มผู้ใช้ ' + u + ' (' + role + ')');
   };
 }
 
@@ -2293,10 +2309,11 @@ function applyAuthUIBoot() {
       const ic = document.getElementById('userBadgeIcon');
       const nm = document.getElementById('userBadgeName');
       const rl = document.getElementById('userBadgeRole');
-      if (ic) ic.textContent = isAdmin() ? '🛡' : '✏️';
+      if (ic) ic.textContent = isAdmin() ? '🛡' : isViewer() ? '👁' : '✏️';
       if (nm) nm.textContent = currentUser.displayName || currentUser.username;
       if (rl) {
         if (isAdmin()) rl.textContent = 'ADMIN';
+        else if (isViewer()) rl.textContent = 'VIEWER';
         else if (isEditor()) {
           const br = BRANCHES.find(b => b.id === currentUser.branchId);
           rl.textContent = 'EDITOR · ' + (br ? br.name : '—');
