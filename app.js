@@ -1183,6 +1183,59 @@ function renderOverviewView() {
     }
   });
 
+  renderOverviewEmpBreakdown(r);
+}
+
+// Per-employee PT+MEM breakdown grouped by branch (Overview page)
+function renderOverviewEmpBreakdown(r) {
+  const box = document.getElementById('ovEmpBreakdown');
+  if (!box) return;
+  let html = '';
+  BRANCHES.forEach(b => {
+    const rows = b.employees.map(e => {
+      const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
+      let pt = 0, mem = 0;
+      for (const d in es) {
+        if (!inDateRange(d, r.from, r.to)) continue;
+        pt += +es[d].pt || 0; mem += +es[d].member || 0;
+      }
+      return { emp: e, pt, mem, total: pt + mem };
+    }).sort((a, b) => b.total - a.total);
+
+    const branchSum = rows.reduce((s, x) => s + x.total, 0);
+    const accent = branchColor(b.id);
+
+    html += '<div class="card" style="margin-bottom:12px;border-left:5px solid ' + accent + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--gray-line);margin-bottom:12px">' +
+      '<h3 style="margin:0;border:none;padding:0;font-size:15px"><span>' + b.emoji + '</span> สาขา' + b.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + rows.length + ' คน)</span></h3>' +
+      '<div style="font-size:13px;font-weight:800;color:' + accent + '">รวม PT+MEM: ฿' + fmt0(branchSum) + '</div>' +
+      '</div>';
+
+    if (!rows.length) {
+      html += '<div class="empty-state" style="padding:14px">ยังไม่มีพนักงาน</div>';
+    } else {
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">';
+      rows.forEach((x, i) => {
+        const e = x.emp;
+        const pos = e.position || 'Sale';
+        const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
+        const rankBadge = i === 0 && x.total > 0
+          ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:4px">🏆 #1</span>'
+          : '';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:#FAFAFA;border:1px solid var(--gray-line);border-radius:10px">' +
+          avatarHTML(e, 'emp-mini-avatar') +
+          '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--black);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + e.name + rankBadge + '</div>' +
+          '<div style="font-size:10px;color:var(--gray-text);margin-top:2px">' + posIcon + ' ' + pos + '</div>' +
+          '</div>' +
+          '<div style="font-size:13px;font-weight:800;color:' + accent + ';white-space:nowrap">฿' + fmt0(x.total) + '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  box.innerHTML = html;
 }
 
 
