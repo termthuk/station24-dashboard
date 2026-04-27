@@ -44,6 +44,7 @@ const STORAGE_COLORS = 'station24_chart_colors_v1';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
+const STORAGE_POSITIONS = 'station24_positions_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
 const KPI_THRESHOLD = 50000;
@@ -68,7 +69,8 @@ const SYNC_KEYS = [
   'station24_sales_log_v1',
   'station24_chart_colors_v1',
   'station24_branch_colors_v1',
-  'station24_users_v1'
+  'station24_users_v1',
+  'station24_positions_v1'
 ];
 let supabaseClient = null;
 let _suppressSync = false;
@@ -130,6 +132,25 @@ let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
   ['pt','member','plan'].forEach(k => { if (!CHART_COLORS[k]) CHART_COLORS[k] = DEFAULT_CHART_COLORS[k]; });
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
+
+// ===== Employee positions (admin-managed) =====
+const DEFAULT_POSITIONS = [
+  { name: 'Personal Trainer', icon: '💪', short: 'PT', hasTraining: true },
+  { name: 'Sale', icon: '💼', short: 'Sale', hasTraining: false }
+];
+let POSITIONS = loadJSON(STORAGE_POSITIONS, DEFAULT_POSITIONS);
+function savePositions() { saveJSON(STORAGE_POSITIONS, POSITIONS); }
+function getPos(name) { return POSITIONS.find(p => p.name === name); }
+function posIcon(name) { const p = getPos(name); return p ? p.icon : '💼'; }
+function posShort(name) { const p = getPos(name); return p ? (p.short || p.name) : (name || 'Sale'); }
+function isPosPT(name) { const p = getPos(name); return p ? !!p.hasTraining : (name === 'Personal Trainer'); }
+function posChipClass(name) { return isPosPT(name) ? 'pt-pos' : 'sale-pos'; }
+function posOptionsHTML(currentValue, useShort) {
+  return POSITIONS.map(p => {
+    const label = p.icon + ' ' + (useShort ? (p.short || p.name) : p.name);
+    return '<option value="' + p.name + '"' + (p.name === currentValue ? ' selected' : '') + '>' + label + '</option>';
+  }).join('');
+}
 
 // chartjs-plugin-datalabels: register globally + sensible defaults so every chart shows numbers
 if (typeof Chart !== 'undefined') {
@@ -452,8 +473,8 @@ function renderEmployeeCards() {
   grid.innerHTML = branch.employees.map(e => {
     const s = stats[e.id]; const pct = maxTotal ? Math.round(s.total/maxTotal*100) : 0;
     const top = maxTotal > 0 && s.total === maxTotal && s.total > 0;
-    const pos = e.position || 'Sale'; const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
-    const pi = pos === 'Personal Trainer' ? '💪' : '💼';
+    const pos = e.position || 'Sale'; const pc = posChipClass(pos);
+    const pi = posIcon(pos);
     return '<div class="emp-card ' + (top?'top-seller':'') + '" data-emp-id="' + e.id + '">' +
       '<span class="emp-card-rank">🏆 TOP</span>' +
       '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข">✎</button>' +
@@ -496,7 +517,7 @@ function renderEmpMiniCharts() {
   grid.innerHTML = br.employees.map(e => {
     const t = empDailyTotals(activeBranch, e.id);
     const av = e.photo ? '<img class="emp-mini-avatar-img" src="' + e.photo + '">' : '<div class="emp-mini-avatar" style="background:' + avatarColor(e.id) + '">' + avatarInitials(e.name) + '</div>';
-    const pos = e.position || 'Sale'; const pi = pos === 'Personal Trainer' ? '💪' : '💼';
+    const pos = e.position || 'Sale'; const pi = posIcon(pos);
     return '<div class="emp-mini-chart-card">' +
       '<div class="emp-mini-chart-header">' + av +
       '<div class="emp-mini-chart-info"><div class="emp-mini-chart-name">' + e.name + '</div>' +
@@ -559,8 +580,7 @@ function renderBranchInline() {
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
     '<input type="text" id="newEmpNameInline" placeholder="ชื่อพนักงาน" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
     '<select id="newEmpPosInline" style="flex:0 0 150px;padding:9px 12px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' +
-    '<option value="Personal Trainer">💪 Personal Trainer</option>' +
-    '<option value="Sale">💼 Sale</option>' +
+    posOptionsHTML(POSITIONS[0] && POSITIONS[0].name, false) +
     '</select>' +
     '<button type="button" id="addEmpBtnInline" style="padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;background:var(--red);color:#fff">+ เพิ่มพนักงาน</button>' +
     '</div>' +
@@ -573,10 +593,10 @@ function renderBranchInline() {
     const renderEmpCard = e => {
       const t = empDailyTotals(br.id, e.id);
       const pos = e.position || 'Sale';
-      const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
+      const pc = posChipClass(pos);
       const team = e.team || 'A';
       const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
-      const isPT = pos === 'Personal Trainer';
+      const isPT = isPosPT(pos);
       const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0,train:0};
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
       const todayTrain = +todayEntry.train || 0;
@@ -612,10 +632,9 @@ function renderBranchInline() {
         : '<span style="display:inline-block;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;background:' + teamColor.bg + ';color:' + teamColor.text + '">' + (team === 'A' ? '🅰 ทีม A' : '🅱 ทีม B') + '</span>';
       const posCtl = canEdit
         ? '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-            '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
-            '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+            posOptionsHTML(pos, true) +
           '</select>'
-        : '<span class="pos-chip ' + pc + '">' + (pos === 'Personal Trainer' ? '💪 PT' : '💼 Sale') + '</span>';
+        : '<span class="pos-chip ' + pc + '">' + posIcon(pos) + ' ' + posShort(pos) + '</span>';
       const editBtns = canEdit
         ? '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
           '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>'
@@ -657,23 +676,27 @@ function renderBranchInline() {
         '</div>';
     };
 
-    const ptEmps = br.employees.filter(e => (e.position || 'Sale') === 'Personal Trainer');
-    const saleEmps = br.employees.filter(e => (e.position || 'Sale') === 'Sale');
-
     const sectionHeader = (icon, label, count, color) =>
       '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 12px;padding:10px 14px;background:' + color.bg + ';border-left:4px solid ' + color.bar + ';border-radius:8px">' +
       '<span style="font-size:18px">' + icon + '</span>' +
       '<span style="font-size:14px;font-weight:800;color:' + color.text + '">' + label + '</span>' +
       '<span style="font-size:11px;font-weight:700;color:' + color.text + ';background:#fff;padding:3px 10px;border-radius:999px">' + count + ' คน</span>' +
       '</div>';
+    const sectionColor = pos => isPosPT(pos.name)
+      ? { bg:'#FEF2F2', bar:'#DC2626', text:'#991B1B' }
+      : { bg:'#EFF6FF', bar:'#2563EB', text:'#1E3A8A' };
 
-    if (ptEmps.length) {
-      html += sectionHeader('💪', 'Personal Trainer', ptEmps.length, { bg:'#FEF2F2', bar:'#DC2626', text:'#991B1B' });
-      html += '<div class="employees-grid" style="margin-bottom:18px">' + ptEmps.map(renderEmpCard).join('') + '</div>';
-    }
-    if (saleEmps.length) {
-      html += sectionHeader('💼', 'Sale', saleEmps.length, { bg:'#EFF6FF', bar:'#2563EB', text:'#1E3A8A' });
-      html += '<div class="employees-grid">' + saleEmps.map(renderEmpCard).join('') + '</div>';
+    POSITIONS.forEach(p => {
+      const list = br.employees.filter(e => (e.position || 'Sale') === p.name);
+      if (!list.length) return;
+      html += sectionHeader(p.icon, p.name, list.length, sectionColor(p));
+      html += '<div class="employees-grid" style="margin-bottom:18px">' + list.map(renderEmpCard).join('') + '</div>';
+    });
+    // Catch-all for employees with positions no longer in the list
+    const orphanEmps = br.employees.filter(e => !POSITIONS.some(p => p.name === (e.position || 'Sale')));
+    if (orphanEmps.length) {
+      html += sectionHeader('❓', 'ตำแหน่งอื่น', orphanEmps.length, { bg:'#F3F4F6', bar:'#6B7280', text:'#1F2937' });
+      html += '<div class="employees-grid" style="margin-bottom:18px">' + orphanEmps.map(renderEmpCard).join('') + '</div>';
     }
   }
 
@@ -860,7 +883,7 @@ function renderRankingView() {
         const medal = i === 0 && r.total > 0 ? '🥇' : i === 1 && r.total > 0 ? '🥈' : i === 2 && r.total > 0 ? '🥉' : '#' + (i+1);
         const pct = maxEmpTotal ? Math.round(r.total / maxEmpTotal * 100) : 0;
         const pos = r.emp.position || 'Sale';
-        const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
+        const pi = posIcon(pos);
         const av = r.emp.photo
           ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
           : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
@@ -868,7 +891,7 @@ function renderRankingView() {
           '<div class="ranking-rank-badge">' + medal + '</div>' + av +
           '<div class="ranking-info">' +
           '<div class="ranking-name">' + r.emp.name + '</div>' +
-          '<div class="ranking-meta">' + posIcon + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
+          '<div class="ranking-meta">' + pi + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
           '<div class="ranking-breakdown">' +
           '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
           '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
@@ -905,7 +928,7 @@ function renderRankingAllView() {
 
   const grandTotal = all.reduce((s, r) => s + r.total, 0);
   const maxTotal = Math.max(...all.map(r => r.total), 1);
-  const ptCount = all.filter(r => (r.emp.position || 'Sale') === 'Personal Trainer').length;
+  const ptCount = all.filter(r => isPosPT(r.emp.position)).length;
   const saleCount = all.length - ptCount;
 
   let html = '<div class="kpi-grid" style="margin-bottom:18px">' +
@@ -928,7 +951,7 @@ function renderRankingAllView() {
       const medal = i === 0 && r.total > 0 ? '🥇' : i === 1 && r.total > 0 ? '🥈' : i === 2 && r.total > 0 ? '🥉' : '#' + (i+1);
       const pct = maxTotal ? Math.round(r.total / maxTotal * 100) : 0;
       const pos = r.emp.position || 'Sale';
-      const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
+      const pi = posIcon(pos);
       const av = r.emp.photo
         ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
         : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
@@ -965,7 +988,7 @@ function renderRankingTrainerView() {
   // Per-branch sections
   const branchHtml = BRANCHES.map(br => {
     const trainers = br.employees
-      .filter(e => (e.position || 'Sale') === 'Personal Trainer')
+      .filter(e => isPosPT(e.position))
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
       .sort((a, b) => b.train - a.train);
     const branchTrainTotal = trainers.reduce((s, r) => s + r.train, 0);
@@ -987,7 +1010,7 @@ function renderRankingTrainerView() {
           '<div class="ranking-rank-badge">' + medal + '</div>' + av +
           '<div class="ranking-info">' +
           '<div class="ranking-name">' + r.emp.name + '</div>' +
-          '<div class="ranking-meta">💪 Personal Trainer · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
+          '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
           '</div>' +
           '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div></div>' +
@@ -1006,7 +1029,7 @@ function renderRankingTrainerView() {
   // Combined ranking across all branches
   const all = [];
   BRANCHES.forEach(br => br.employees.forEach(e => {
-    if ((e.position || 'Sale') !== 'Personal Trainer') return;
+    if (!isPosPT(e.position)) return;
     const t = empDailyTotals(br.id, e.id);
     all.push({ branch: br, emp: e, train: t.train, days: t.days });
   }));
@@ -1041,10 +1064,7 @@ function renderRankingTrainerView() {
         '<div class="ranking-rank-badge">' + medal + '</div>' + av +
         '<div class="ranking-info">' +
         '<div class="ranking-name">' + r.emp.name + ' <span style="font-size:11px;font-weight:600;color:var(--gray-text);margin-left:4px">' + r.branch.emoji + ' ' + r.branch.name + '</span></div>' +
-        '<div class="ranking-meta">💪 Personal Trainer · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
-        '<div class="ranking-breakdown">' +
-        '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
-        '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
+        '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
         '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
         '</div>' +
         '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div></div>' +
@@ -1138,7 +1158,8 @@ function openEditEmpModal(empId) {
   activeEditEmp = empId; editEmpPhotoBase64 = e.photo || '';
   if(document.getElementById('editEmpSubtitle'))document.getElementById('editEmpSubtitle').textContent = e.name + ' · ' + e.id;
   if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
-  if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
+  const posSel = document.getElementById('editEmpPosition');
+  if (posSel) { posSel.innerHTML = posOptionsHTML(e.position || 'Sale', false); posSel.value = e.position || 'Sale'; }
   if(document.getElementById('editEmpTeam'))document.getElementById('editEmpTeam').value = e.team || 'A';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
@@ -1446,8 +1467,8 @@ function renderOverviewEmpBreakdown(r) {
       rows.forEach((x, i) => {
         const e = x.emp;
         const pos = e.position || 'Sale';
-        const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
-        const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
+        const pc = posChipClass(pos);
+        const pi = posIcon(pos);
         const belowQuota = x.mtd < kpiTarget;
         const shortfall = Math.max(kpiTarget - x.mtd, 0);
         const cardStyle = belowQuota
@@ -1468,7 +1489,7 @@ function renderOverviewEmpBreakdown(r) {
           '<div class="emp-card-info">' +
           '<div class="emp-card-name"' + (nameStyle ? ' style="' + nameStyle + '"' : '') + nameTitle + '>' + e.name + rankBadge + '</div>' +
           '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
-          '<span class="pos-chip ' + pc + '">' + posIcon + ' ' + pos + '</span>' +
+          '<span class="pos-chip ' + pc + '">' + pi + ' ' + pos + '</span>' +
           '</div>' +
           '<div class="emp-card-id">' + e.id + '</div></div></div>' +
           '<div class="emp-card-categories">' +
@@ -1534,16 +1555,15 @@ function renderAddSalesView() {
       br.employees.map(e => {
         const t = empDailyTotals(br.id, e.id);
         const pos = e.position || 'Sale';
-        const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
-        const pi = pos === 'Personal Trainer' ? '💪' : '💼';
+        const pc = posChipClass(pos);
+        const pi = posIcon(pos);
         const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'', member:'', plan:''};
         return '<div class="emp-card">' +
           '<div class="emp-card-header">' + avatarHTML(e) +
           '<div class="emp-card-info">' +
           '<div class="emp-card-name">' + e.name + '</div>' +
           '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-          '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
-          '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+          posOptionsHTML(pos, true) +
           '</select>' +
           '<div class="emp-card-id">' + e.id + '</div></div></div>' +
           '<div class="emp-card-categories">' +
@@ -1932,15 +1952,14 @@ function renderRecordSalesView() {
       br.employees.map(e => {
         const t = empDailyTotals(br.id, e.id);
         const pos = e.position || 'Sale';
-        const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
+        const pc = posChipClass(pos);
         const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:'',member:'',plan:''};
         return '<div class="emp-card">' +
           '<div class="emp-card-header">' + avatarHTML(e) +
           '<div class="emp-card-info">' +
           '<div class="emp-card-name">' + e.name + '</div>' +
           '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-          '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
-          '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
+          posOptionsHTML(pos, true) +
           '</select>' +
           '<div class="emp-card-id">' + e.id + '</div></div></div>' +
           '<div class="emp-card-categories">' +
@@ -2220,7 +2239,7 @@ function renderHistoryView() {
         '</tr></thead>' +
         '<tbody>' +
         brRows.map(x => {
-          const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
+          const pi = posIcon(x.position);
           const team = x.team || 'A';
           const teamBg = team === 'A' ? '#FEF3C7' : '#DBEAFE';
           const teamFg = team === 'A' ? '#92400E' : '#1E40AF';
@@ -2232,12 +2251,12 @@ function renderHistoryView() {
             '<td style="font-family:monospace;font-size:12px;color:var(--gray-text)">' + (x.time || '—') + '</td>' +
             '<td><div style="display:flex;align-items:center;gap:8px">' + av + '<span>' + x.empName + '</span></div></td>' +
             '<td style="font-family:monospace;font-size:11px;color:var(--gray-text)">' + x.empId + '</td>' +
-            '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
+            '<td><span class="pos-chip ' + posChipClass(x.position) + '">' + pi + ' ' + x.position + '</span></td>' +
             '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;background:' + teamBg + ';color:' + teamFg + '">' + (team === 'A' ? '🅰' : '🅱') + ' ' + team + '</span></td>' +
             '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
-            '<td class="num" style="color:#92400E">' + (x.position === 'Personal Trainer' && x.train ? fmtInt(x.train) : '—') + '</td>' +
+            '<td class="num" style="color:#92400E">' + (isPosPT(x.position) && x.train ? fmtInt(x.train) : '—') + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
             (canManage() ? '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' : '<td></td>') +
             '</tr>';
@@ -2386,6 +2405,40 @@ function renderUsersView() {
     '<button type="button" id="addBranchBtn" style="padding:9px 18px;border:none;border-radius:8px;background:var(--red);color:#fff;font-weight:700;cursor:pointer">+ เพิ่มสาขา</button>' +
     '</div></div></div>';
 
+  // ---- Positions management ----
+  const positionRows = POSITIONS.map((p, i) => {
+    const usedCount = BRANCHES.reduce((s, br) => s + br.employees.filter(e => (e.position || 'Sale') === p.name).length, 0);
+    return '<tr>' +
+      '<td><input type="text" class="pos-icon" data-idx="' + i + '" value="' + (p.icon || '') + '" maxlength="3" style="width:60px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-size:18px;text-align:center"></td>' +
+      '<td><strong>' + p.name + '</strong></td>' +
+      '<td><input type="text" class="pos-short" data-idx="' + i + '" value="' + (p.short || '') + '" placeholder="ตัวย่อ" style="width:80px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-size:12px"></td>' +
+      '<td><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" class="pos-istraining" data-idx="' + i + '"' + (p.hasTraining ? ' checked' : '') + '> 🏋 มีจำนวนเทรน</label></td>' +
+      '<td>' + usedCount + ' คน</td>' +
+      '<td>' +
+      (POSITIONS.length > 1 && usedCount === 0
+        ? '<button class="pos-del" data-idx="' + i + '" style="background:#FEE2E2;color:#991B1B;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;font-size:11px">🗑 ลบ</button>'
+        : '<span style="font-size:11px;color:var(--gray-text)">' + (usedCount > 0 ? '(มีพนักงานใช้อยู่)' : '(ต้องมีอย่างน้อย 1)') + '</span>') +
+      '</td></tr>';
+  }).join('');
+
+  html += '<div class="card" style="margin-bottom:18px">' +
+    '<h3><span>🏷️</span> ตำแหน่งงาน <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + POSITIONS.length + ' ตำแหน่ง)</span></h3>' +
+    '<div style="overflow-x:auto"><table class="history-table" style="width:100%">' +
+    '<thead><tr><th>Icon</th><th>ชื่อตำแหน่ง</th><th>ตัวย่อ</th><th>คุณสมบัติ</th><th>พนักงาน</th><th></th></tr></thead><tbody>' +
+    positionRows +
+    '</tbody></table></div>' +
+    '<div style="margin-top:14px;padding:14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px">' +
+    '<div style="font-size:13px;font-weight:700;color:#92400E;margin-bottom:10px">➕ เพิ่มตำแหน่งใหม่</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<input type="text" id="newPosIcon" placeholder="🏷" maxlength="3" style="width:70px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:18px;text-align:center">' +
+    '<input type="text" id="newPosName" placeholder="ชื่อตำแหน่ง (เช่น Manager)" style="flex:1;min-width:160px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<input type="text" id="newPosShort" placeholder="ตัวย่อ (เช่น MGR)" style="width:140px;padding:9px;border:1px solid var(--gray-line);border-radius:8px;font-size:13px">' +
+    '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:9px"><input type="checkbox" id="newPosTraining"> 🏋 มีจำนวนเทรน</label>' +
+    '<button type="button" id="addPosBtn" style="padding:9px 18px;border:none;border-radius:8px;background:#D97706;color:#fff;font-weight:700;cursor:pointer">+ เพิ่มตำแหน่ง</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--gray-text);margin-top:8px;font-style:italic">💡 ลบได้เฉพาะตำแหน่งที่ไม่มีพนักงานใช้อยู่ · ติ๊ก "มีจำนวนเทรน" สำหรับตำแหน่งเทรนเนอร์</div>' +
+    '</div></div>';
+
   // ---- Users management ----
   html += '<div class="card" style="margin-bottom:18px">' +
     '<h3><span>👥</span> ผู้ใช้ <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + USERS.length + ' คน)</span></h3>' +
@@ -2496,6 +2549,38 @@ function renderUsersView() {
     USERS.push({ username: u, password: p, displayName: d, role: role, branchId: role === 'editor' ? bid : null });
     saveUsers(); renderUsersView(); showToast('✓ เพิ่มผู้ใช้ ' + u + ' (' + role + ')');
   };
+
+  // Positions wiring
+  container.querySelectorAll('.pos-icon').forEach(inp => {
+    inp.onchange = () => { POSITIONS[+inp.dataset.idx].icon = inp.value.trim() || '🏷'; savePositions(); renderUsersView(); };
+  });
+  container.querySelectorAll('.pos-short').forEach(inp => {
+    inp.onchange = () => { POSITIONS[+inp.dataset.idx].short = inp.value.trim(); savePositions(); };
+  });
+  container.querySelectorAll('.pos-istraining').forEach(cb => {
+    cb.onchange = () => { POSITIONS[+cb.dataset.idx].hasTraining = cb.checked; savePositions(); renderUsersView(); };
+  });
+  container.querySelectorAll('.pos-del').forEach(btn => {
+    btn.onclick = () => {
+      const idx = +btn.dataset.idx;
+      const p = POSITIONS[idx];
+      if (!p) return;
+      if (POSITIONS.length <= 1) { showToast('⚠ ต้องมีอย่างน้อย 1 ตำแหน่ง', true); return; }
+      if (!confirm('ลบตำแหน่ง "' + p.name + '"?')) return;
+      POSITIONS.splice(idx, 1); savePositions();
+      renderUsersView(); showToast('🗑 ลบตำแหน่ง ' + p.name);
+    };
+  });
+  document.getElementById('addPosBtn').onclick = () => {
+    const icon = document.getElementById('newPosIcon').value.trim() || '🏷';
+    const name = document.getElementById('newPosName').value.trim();
+    const short = document.getElementById('newPosShort').value.trim();
+    const hasTraining = document.getElementById('newPosTraining').checked;
+    if (!name) { showToast('⚠ กรอกชื่อตำแหน่ง', true); return; }
+    if (POSITIONS.some(p => p.name === name)) { showToast('⚠ ชื่อตำแหน่งซ้ำ', true); return; }
+    POSITIONS.push({ name: name, icon: icon, short: short || name, hasTraining: hasTraining });
+    savePositions(); renderUsersView(); showToast('✓ เพิ่มตำแหน่ง ' + name);
+  };
 }
 
 // ===== Login boot =====
@@ -2567,6 +2652,7 @@ function applyKeyToGlobals(key, value) {
   else if (key === 'station24_sales_log_v1') LOG = value;
   else if (key === 'station24_chart_colors_v1') CHART_COLORS = value;
   else if (key === 'station24_branch_colors_v1') BRANCH_COLORS = value;
+  else if (key === 'station24_positions_v1') POSITIONS = value;
   else if (key === 'station24_users_v1') {
     USERS = value;
     if (!USERS.some(u => u.role === 'admin')) USERS.unshift(DEFAULT_USERS[0]);
@@ -2604,7 +2690,8 @@ async function bootstrapSupabase() {
         { key: 'station24_sales_log_v1', value: LOG, updated_at: new Date().toISOString() },
         { key: 'station24_chart_colors_v1', value: CHART_COLORS, updated_at: new Date().toISOString() },
         { key: 'station24_branch_colors_v1', value: BRANCH_COLORS, updated_at: new Date().toISOString() },
-        { key: 'station24_users_v1', value: USERS, updated_at: new Date().toISOString() }
+        { key: 'station24_users_v1', value: USERS, updated_at: new Date().toISOString() },
+        { key: 'station24_positions_v1', value: POSITIONS, updated_at: new Date().toISOString() }
       ];
       const r = await supabaseClient.from('app_state').upsert(rows);
       if (r.error) console.warn('☁ migrate fail:', r.error.message);
