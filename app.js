@@ -1222,7 +1222,7 @@ function renderOverviewView() {
   renderOverviewEmpBreakdown(r);
 }
 
-// Per-employee PT+MEM breakdown grouped by branch (Overview page)
+// Per-employee breakdown grouped by branch (Overview page) — full emp-card style
 function renderOverviewEmpBreakdown(r) {
   const box = document.getElementById('ovEmpBreakdown');
   if (!box) return;
@@ -1230,12 +1230,14 @@ function renderOverviewEmpBreakdown(r) {
   BRANCHES.forEach(b => {
     const rows = b.employees.map(e => {
       const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
-      let pt = 0, mem = 0;
+      let pt = 0, mem = 0, plan = 0, days = 0;
       for (const d in es) {
         if (!inDateRange(d, r.from, r.to)) continue;
-        pt += +es[d].pt || 0; mem += +es[d].member || 0;
+        const _pt = +es[d].pt || 0, _m = +es[d].member || 0, _pl = +es[d].plan || 0;
+        if (_pt || _m || _pl) days++;
+        pt += _pt; mem += _m; plan += _pl;
       }
-      return { emp: e, pt, mem, total: pt + mem };
+      return { emp: e, pt, mem, plan, days, total: pt + mem };
     }).sort((a, b) => b.total - a.total);
 
     const branchSum = rows.reduce((s, x) => s + x.total, 0);
@@ -1250,21 +1252,35 @@ function renderOverviewEmpBreakdown(r) {
     if (!rows.length) {
       html += '<div class="empty-state" style="padding:14px">ยังไม่มีพนักงาน</div>';
     } else {
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">';
+      html += '<div class="employees-grid">';
       rows.forEach((x, i) => {
         const e = x.emp;
         const pos = e.position || 'Sale';
+        const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
         const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
-        const rankBadge = i === 0 && x.total > 0
-          ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:4px">🏆 #1</span>'
+        const belowQuota = x.total < DAILY_QUOTA;
+        const nameStyle = belowQuota ? 'color:#DC2626' : '';
+        const nameTitle = belowQuota
+          ? ' title="ยอดไม่ถึง ฿' + fmt0(DAILY_QUOTA) + ' (ยอด ฿' + fmt0(x.total) + ')"'
           : '';
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px;background:#FAFAFA;border:1px solid var(--gray-line);border-radius:10px">' +
-          avatarHTML(e, 'emp-mini-avatar') +
-          '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:12px;font-weight:700;color:var(--black);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + e.name + rankBadge + '</div>' +
-          '<div style="font-size:10px;color:var(--gray-text);margin-top:2px">' + posIcon + ' ' + pos + '</div>' +
+        const rankBadge = i === 0 && x.total > 0
+          ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px">🏆 #1</span>'
+          : '';
+        html += '<div class="emp-card">' +
+          '<div class="emp-card-header">' + avatarHTML(e) +
+          '<div class="emp-card-info">' +
+          '<div class="emp-card-name"' + (nameStyle ? ' style="' + nameStyle + '"' : '') + nameTitle + '>' + e.name + rankBadge + '</div>' +
+          '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
+          '<span class="pos-chip ' + pc + '">' + posIcon + ' ' + pos + '</span>' +
           '</div>' +
-          '<div style="font-size:13px;font-weight:800;color:' + accent + ';white-space:nowrap">฿' + fmt0(x.total) + '</div>' +
+          '<div class="emp-card-id">' + e.id + '</div></div></div>' +
+          '<div class="emp-card-categories">' +
+          '<div class="emp-cat pt"><div class="emp-cat-label">💪 PT</div><div class="emp-cat-value">฿' + fmtShort(x.pt) + '</div></div>' +
+          '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(x.mem) + '</div></div>' +
+          '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(x.plan) + '</div></div></div>' +
+          '<div class="emp-card-total">' +
+          '<span class="emp-card-total-label">รวม PT+MEM · ' + x.days + ' วัน</span>' +
+          '<span class="emp-card-total-value">฿' + fmt0(x.total) + '</span></div>' +
           '</div>';
       });
       html += '</div>';
