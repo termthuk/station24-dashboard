@@ -99,10 +99,10 @@ function nowHHMM() {
   const d = new Date(); const p = n => String(n).padStart(2,'0');
   return p(d.getHours()) + ':' + p(d.getMinutes());
 }
-function logSale(bid, eid, date, pt, m, pl) {
+function logSale(bid, eid, date, pt, m, pl, train) {
   LOG.push({ id: 'L' + Date.now() + Math.random().toString(36).slice(2,7),
     branchId: bid, empId: eid, date: date, time: nowHHMM(),
-    pt: +pt || 0, member: +m || 0, plan: +pl || 0 });
+    pt: +pt || 0, member: +m || 0, plan: +pl || 0, train: +train || 0 });
   saveLog();
 }
 
@@ -254,11 +254,13 @@ function avatarHTML(e, cls) {
 
 function empDailyTotals(bid, eid) {
   const entries = DAILY[bid] && DAILY[bid][eid] ? DAILY[bid][eid] : {};
-  let pt=0, member=0, plan=0, days=0;
+  let pt=0, member=0, plan=0, train=0, days=0;
   for (const d in entries) {
-    pt += +entries[d].pt||0; member += +entries[d].member||0; plan += +entries[d].plan||0; days++;
+    pt += +entries[d].pt||0; member += +entries[d].member||0; plan += +entries[d].plan||0;
+    train += +entries[d].train||0;
+    days++;
   }
-  return { pt, member, plan, days, total: pt+member+plan };
+  return { pt, member, plan, train, days, total: pt+member+plan };
 }
 function branchDailyTotals(bid) {
   const br = getBranch(bid); let pt=0, member=0, plan=0;
@@ -551,8 +553,10 @@ function renderBranchInline() {
       const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
       const team = e.team || 'A';
       const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
-      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0};
+      const isPT = pos === 'Personal Trainer';
+      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0,train:0};
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
+      const todayTrain = +todayEntry.train || 0;
       const todayTotal = todayPT + todayMEM + todayPLAN;
       const todayPTMem = todayPT + todayMEM;
       const belowQuota = todayPTMem < DAILY_QUOTA;
@@ -572,6 +576,9 @@ function renderBranchInline() {
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
+      const trainBadge = isPT && todayTrain > 0
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรนวันนี้</span><span style="color:#78350F;font-weight:800">' + fmtInt(todayTrain) + ' ครั้ง</span></div>'
+        : '';
       const canEdit = canEditBranch(br.id);
       const teamCtl = canEdit
         ? '<select class="inline-team-select" data-eid="' + e.id + '" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--gray-line);background:' + teamColor.bg + ';color:' + teamColor.text + ';cursor:pointer">' +
@@ -589,16 +596,20 @@ function renderBranchInline() {
         ? '<button class="emp-card-edit" data-emp-edit="' + e.id + '" title="แก้ไข ' + e.name + '" style="position:absolute;top:8px;right:40px;width:26px;height:26px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✎</button>' +
           '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>'
         : '';
+      const trainInputRow = isPT
+        ? '<div class="inline-input-row"><span class="inline-label" style="background:#FEF3C7;color:#92400E">🏋 เทรน</span><input type="number" class="inline-train" placeholder="0" min="0" step="1"></div>'
+        : '';
       const salesForm = canEdit
-        ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
+        ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '" data-ispt="' + (isPT ? '1' : '0') + '">' +
             '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
-            quotaBadge + todayBadge +
+            quotaBadge + todayBadge + trainBadge +
             '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
             '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
             '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
+            trainInputRow +
             '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
           '</div>'
-        : (quotaBadge + todayBadge);
+        : (quotaBadge + todayBadge + trainBadge);
       return '<div class="emp-card" style="' + cardStyle + '">' +
         editBtns +
         '<div class="emp-card-header">' + avatarHTML(e) +
@@ -615,6 +626,9 @@ function renderBranchInline() {
         '<div class="emp-card-total">' +
         '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
+        (isPT
+          ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;margin-top:6px;font-size:12px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรนรวม</span><span style="color:#78350F;font-weight:800">' + fmtInt(t.train) + ' ครั้ง</span></div>'
+          : '') +
         salesForm +
         '</div>';
     };
@@ -720,24 +734,31 @@ function renderBranchInline() {
     btn.onclick = () => {
       const form = btn.closest('.inline-sales-form');
       const bid = form.dataset.bid, eid = form.dataset.eid;
+      const isPT = form.dataset.ispt === '1';
       const date = form.querySelector('.inline-date').value;
       if (!date) { showToast('⚠ เลือกวันที่', true); return; }
       const pt = +form.querySelector('.inline-pt').value || 0;
       const m  = +form.querySelector('.inline-member').value || 0;
       const pl = +form.querySelector('.inline-plan').value || 0;
-      if (!pt && !m && !pl) { showToast('⚠ ยังไม่ได้กรอกยอด', true); return; }
+      const trainEl = form.querySelector('.inline-train');
+      const tr = isPT && trainEl ? (+trainEl.value || 0) : 0;
+      if (!pt && !m && !pl && !tr) { showToast('⚠ ยังไม่ได้กรอกยอด', true); return; }
       if (!DAILY[bid]) DAILY[bid] = {};
       if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
-      const prev = DAILY[bid][eid][date] || { pt: 0, member: 0, plan: 0 };
+      const prev = DAILY[bid][eid][date] || { pt: 0, member: 0, plan: 0, train: 0 };
       DAILY[bid][eid][date] = {
         pt: (+prev.pt || 0) + pt,
         member: (+prev.member || 0) + m,
-        plan: (+prev.plan || 0) + pl
+        plan: (+prev.plan || 0) + pl,
+        train: (+prev.train || 0) + tr
       };
       saveDaily();
-      logSale(bid, eid, date, pt, m, pl);
+      logSale(bid, eid, date, pt, m, pl, tr);
       renderBranchView();
-      showToast('✓ เพิ่มยอด ฿' + fmt0(pt + m + pl) + ' · ' + empName(eid) + ' (' + date + ')');
+      const msg = (pt + m + pl) > 0
+        ? '✓ เพิ่มยอด ฿' + fmt0(pt + m + pl) + (tr ? ' · 🏋 ' + tr + ' ครั้ง' : '') + ' · ' + empName(eid) + ' (' + date + ')'
+        : '✓ เพิ่มเทรน ' + tr + ' ครั้ง · ' + empName(eid) + ' (' + date + ')';
+      showToast(msg);
     };
   });
 }
@@ -943,9 +964,10 @@ function saveDailyEntry() {
   if (pt===0 && m===0 && p===0) { if (!confirm('ยอดทั้ง 3 หมวดเป็น 0 — บันทึก?')) return; }
   if (!DAILY[activeBranch]) DAILY[activeBranch] = {};
   if (!DAILY[activeBranch][activeDailyEmp]) DAILY[activeBranch][activeDailyEmp] = {};
-  DAILY[activeBranch][activeDailyEmp][date] = { pt: pt, member: m, plan: p };
+  const prevDE = DAILY[activeBranch][activeDailyEmp][date] || {};
+  DAILY[activeBranch][activeDailyEmp][date] = { pt: pt, member: m, plan: p, train: +prevDE.train || 0 };
   saveDaily();
-  if (pt || m || p) logSale(activeBranch, activeDailyEmp, date, pt, m, p);
+  if (pt || m || p) logSale(activeBranch, activeDailyEmp, date, pt, m, p, 0);
   renderDailyHistory(activeDailyEmp);
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
@@ -1942,14 +1964,14 @@ function hsCollectRows() {
     const br = BRANCHES.find(b => b.id === en.branchId);
     if (!br) return;
     const e = br.employees.find(x => x.id === en.empId) || {};
-    const pt = +en.pt || 0, m = +en.member || 0, pl = +en.plan || 0;
+    const pt = +en.pt || 0, m = +en.member || 0, pl = +en.plan || 0, tr = +en.train || 0;
     rows.push({
       logId: en.id, date: en.date, time: en.time || '',
       branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
       empId: en.empId, empName: e.name || en.empId,
       position: e.position || 'Sale', team: e.team || 'A',
       photo: e.photo || '',
-      pt: pt, member: m, plan: pl, total: pt + m + pl
+      pt: pt, member: m, plan: pl, train: tr, total: pt + m + pl
     });
   });
   rows.sort((a, b) => (a.logId < b.logId ? 1 : a.logId > b.logId ? -1 : 0));
@@ -1999,8 +2021,8 @@ function renderHistoryView() {
   container.innerHTML = branchesToShow.map(b => {
     const accent = branchColor(b.id);
     const brRows = (byBranch[b.id] || []).slice().sort((a, c) => a.logId < c.logId ? 1 : a.logId > c.logId ? -1 : 0);
-    let sP=0, sM=0, sPl=0;
-    brRows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; });
+    let sP=0, sM=0, sPl=0, sTr=0;
+    brRows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; sTr+=x.train||0; });
     const sT = sP + sM + sPl;
 
     const tableHtml = !brRows.length
@@ -2017,6 +2039,7 @@ function renderHistoryView() {
         '<th class="num">💪 PT</th>' +
         '<th class="num">🎫 MEMBER</th>' +
         '<th class="num">📋 PLAN</th>' +
+        '<th class="num">🏋 เทรน</th>' +
         '<th class="num">💰 รวม</th>' +
         '<th></th>' +
         '</tr></thead>' +
@@ -2039,6 +2062,7 @@ function renderHistoryView() {
             '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
+            '<td class="num" style="color:#92400E">' + (x.position === 'Personal Trainer' && x.train ? fmtInt(x.train) : '—') + '</td>' +
             '<td class="num"><strong>฿' + fmt0(x.total) + '</strong></td>' +
             (canManage() ? '<td><button class="hs-del" data-logid="' + x.logId + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' : '<td></td>') +
             '</tr>';
@@ -2048,6 +2072,7 @@ function renderHistoryView() {
         '<td class="num" style="color:#DC2626">฿' + fmt0(sP) + '</td>' +
         '<td class="num">฿' + fmt0(sM) + '</td>' +
         '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
+        '<td class="num" style="color:#92400E">' + (sTr ? fmtInt(sTr) : '—') + '</td>' +
         '<td class="num">฿' + fmt0(sT) + '</td>' +
         '<td></td>' +
         '</tr>' +
@@ -2077,7 +2102,8 @@ function renderHistoryView() {
         d.pt = Math.max(0, (+d.pt || 0) - (+en.pt || 0));
         d.member = Math.max(0, (+d.member || 0) - (+en.member || 0));
         d.plan = Math.max(0, (+d.plan || 0) - (+en.plan || 0));
-        if (!d.pt && !d.member && !d.plan) delete DAILY[en.branchId][en.empId][en.date];
+        d.train = Math.max(0, (+d.train || 0) - (+en.train || 0));
+        if (!d.pt && !d.member && !d.plan && !d.train) delete DAILY[en.branchId][en.empId][en.date];
         saveDaily();
       }
       renderHistoryView();
