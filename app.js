@@ -2196,7 +2196,7 @@ function hsCollectRows() {
       empId: en.empId, empName: e.name || en.empId,
       position: e.position || 'Sale', team: e.team || 'A',
       photo: e.photo || '',
-      pt: pt, member: m, plan: pl, train: tr, total: pt + m + pl
+      pt: pt, member: m, plan: pl, train: tr, total: pt + m
     });
   });
   rows.sort((a, b) => (a.logId < b.logId ? 1 : a.logId > b.logId ? -1 : 0));
@@ -2248,7 +2248,7 @@ function renderHistoryView() {
     const brRows = (byBranch[b.id] || []).slice().sort((a, c) => a.logId < c.logId ? 1 : a.logId > c.logId ? -1 : 0);
     let sP=0, sM=0, sPl=0, sTr=0;
     brRows.forEach(x => { sP+=x.pt; sM+=x.member; sPl+=x.plan; sTr+=x.train||0; });
-    const sT = sP + sM + sPl;
+    const sT = sP + sM;
 
     const tableHtml = !brRows.length
       ? '<div style="text-align:center;padding:32px;color:var(--gray-text);font-size:12px">— ไม่มีข้อมูลในสาขานี้ —</div>'
@@ -2265,7 +2265,7 @@ function renderHistoryView() {
         '<th class="num">🎫 MEMBER</th>' +
         '<th class="num">📋 PLAN</th>' +
         '<th class="num">🏋 เทรน</th>' +
-        '<th class="num">💰 รวม</th>' +
+        '<th class="num" title="PT + MEM (ไม่รวม PLAN)">💰 รวม PT+MEM</th>' +
         '<th></th>' +
         '</tr></thead>' +
         '<tbody>' +
@@ -2307,7 +2307,7 @@ function renderHistoryView() {
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px dashed var(--gray-line);margin-bottom:12px">' +
       '<h3 style="margin:0;border:none;padding:0;color:' + accent + '"><span>' + b.emoji + '</span> สาขา' + b.name +
       ' <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + brRows.length + ' รายการ)</span></h3>' +
-      '<div style="font-size:12px;font-weight:700;color:var(--black)">รวม ฿' + fmt0(sT) + '</div>' +
+      '<div style="font-size:12px;font-weight:700;color:var(--black)" title="PT + MEM">รวม PT+MEM ฿' + fmt0(sT) + '</div>' +
       '</div>' +
       tableHtml +
       '</div>';
@@ -2342,10 +2342,10 @@ function hsExportExcel() {
   const rows = hsCollectRows();
   if (!rows.length) { showToast('⚠ ไม่มีข้อมูลในช่วงนี้', true); return; }
   const r = hsGetRange();
-  const data = [['วันที่','สาขา','รหัส','ชื่อพนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด Plan SETUP','รวม']];
+  const data = [['วันที่','สาขา','รหัส','ชื่อพนักงาน','ตำแหน่ง','ยอด PT','ยอด MEMBER','ยอด Plan SETUP','รวม PT+MEM']];
   let tP=0, tM=0, tPl=0;
   rows.forEach(x => { data.push([x.date, x.branchName, x.empId, x.empName, x.position, x.pt, x.member, x.plan, x.total]); tP+=x.pt; tM+=x.member; tPl+=x.plan; });
-  data.push(['รวม','','','','', tP, tM, tPl, tP+tM+tPl]);
+  data.push(['รวม','','','','', tP, tM, tPl, tP+tM]);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(data);
   ws['!cols'] = [{wch:12},{wch:14},{wch:14},{wch:22},{wch:18},{wch:14},{wch:16},{wch:18},{wch:14}];
