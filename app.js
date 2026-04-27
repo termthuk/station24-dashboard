@@ -229,6 +229,14 @@ normalizeData();
 
 let currentView = 'branch';
 let activeBranch = 'sriracha';
+let globalBranchFilter = ''; // '' = ทุกสาขา, otherwise branch.id
+
+function filteredBranches() {
+  if (isEditor() && currentUser && currentUser.branchId) return BRANCHES.filter(b => b.id === currentUser.branchId);
+  if (!globalBranchFilter) return BRANCHES;
+  const found = BRANCHES.filter(b => b.id === globalBranchFilter);
+  return found.length ? found : BRANCHES;
+}
 let activeEmployee = null;
 let activeDailyEmp = null;
 let activeEditEmp = null;
@@ -388,6 +396,27 @@ function renderMenuNav() {
 
 function renderSidebar() {
   const visibleBranches = BRANCHES.filter(b => canSeeBranch(b.id));
+  // Global branch filter (hidden for editors, who are pinned to one branch)
+  const filterSec = document.getElementById('globalFilterSection');
+  const filterSel = document.getElementById('globalBranchFilter');
+  if (filterSec && filterSel) {
+    if (isEditor()) {
+      filterSec.style.display = 'none';
+    } else {
+      filterSec.style.display = 'block';
+      const cur = globalBranchFilter;
+      filterSel.innerHTML = '<option value="">🏢 ทุกสาขา</option>' +
+        visibleBranches.map(b => '<option value="' + b.id + '">' + b.emoji + ' สาขา' + b.name + '</option>').join('');
+      filterSel.value = cur;
+      if (!filterSel.dataset.bound) {
+        filterSel.dataset.bound = '1';
+        filterSel.onchange = () => {
+          globalBranchFilter = filterSel.value;
+          reRenderCurrentView();
+        };
+      }
+    }
+  }
   const addSec = document.getElementById('addBranchSection');
   if (addSec) addSec.style.display = isAdmin() ? 'block' : 'none';
   if (isAdmin()) {
@@ -867,7 +896,7 @@ function renderIndividualView() {
 function renderRankingView() {
   renderSidebar();
   const container = document.getElementById('rankingContainer');
-  container.innerHTML = BRANCHES.map(br => {
+  container.innerHTML = filteredBranches().map(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
       return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member };
@@ -920,7 +949,7 @@ function renderRankingAllView() {
   if (!container) return;
 
   const all = [];
-  BRANCHES.forEach(br => br.employees.forEach(e => {
+  filteredBranches().forEach(br => br.employees.forEach(e => {
     const t = empDailyTotals(br.id, e.id);
     all.push({ branch: br, emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member });
   }));
@@ -931,10 +960,12 @@ function renderRankingAllView() {
   const ptCount = all.filter(r => isPosPT(r.emp.position)).length;
   const saleCount = all.length - ptCount;
 
+  const fbCount = filteredBranches().length;
+  const scopeLabel = globalBranchFilter ? '1 สาขา' : (fbCount + ' สาขา');
   let html = '<div class="kpi-grid" style="margin-bottom:18px">' +
-    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(grandTotal) + '</div><div class="kpi-sub">ทุกสาขา ทุกคน</div></div>' +
+    '<div class="kpi-card total"><div class="kpi-icon">💰</div><div class="kpi-label">ยอดรวมทั้งหมด</div><div class="kpi-value">฿' + fmt0(grandTotal) + '</div><div class="kpi-sub">' + scopeLabel + ' · ' + all.length + ' คน</div></div>' +
     '<div class="kpi-card pt"><div class="kpi-icon">👥</div><div class="kpi-label">พนักงานทั้งหมด</div><div class="kpi-value">' + all.length + '</div><div class="kpi-sub">PT ' + ptCount + ' · Sale ' + saleCount + '</div></div>' +
-    '<div class="kpi-card member"><div class="kpi-icon">🏢</div><div class="kpi-label">จำนวนสาขา</div><div class="kpi-value">' + BRANCHES.length + '</div><div class="kpi-sub">รวมทั้งหมด</div></div>' +
+    '<div class="kpi-card member"><div class="kpi-icon">🏢</div><div class="kpi-label">จำนวนสาขา</div><div class="kpi-value">' + fbCount + '</div><div class="kpi-sub">' + (globalBranchFilter ? 'กรองอยู่' : 'รวมทั้งหมด') + '</div></div>' +
     '<div class="kpi-card plan"><div class="kpi-icon">🥇</div><div class="kpi-label">ยอดสูงสุด</div><div class="kpi-value">฿' + fmt0(all[0] ? all[0].total : 0) + '</div><div class="kpi-sub">' + (all[0] ? all[0].emp.name : '—') + '</div></div>' +
     '</div>';
 
@@ -986,7 +1017,7 @@ function renderRankingTrainerView() {
   if (!container) return;
 
   // Per-branch sections
-  const branchHtml = BRANCHES.map(br => {
+  const branchHtml = filteredBranches().map(br => {
     const trainers = br.employees
       .filter(e => isPosPT(e.position))
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
@@ -1026,9 +1057,9 @@ function renderRankingTrainerView() {
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
 
-  // Combined ranking across all branches
+  // Combined ranking across all branches (respects global branch filter)
   const all = [];
-  BRANCHES.forEach(br => br.employees.forEach(e => {
+  filteredBranches().forEach(br => br.employees.forEach(e => {
     if (!isPosPT(e.position)) return;
     const t = empDailyTotals(br.id, e.id);
     all.push({ branch: br, emp: e, train: t.train, days: t.days });
@@ -1296,11 +1327,12 @@ function renderOverviewView() {
   const r = ovRange();
   if(document.getElementById('ovRangeBadge'))document.getElementById('ovRangeBadge').innerHTML = '🎯 ช่วงที่ดู: <strong style="margin-left:4px">' + ovRangeLabel(r) + '</strong>';
 
-  // Aggregate across all branches in range
+  // Aggregate across filtered branches in range
+  const branchesView = filteredBranches();
   const byDate = {};
   let gP = 0, gM = 0, gPl = 0;
   const branchTotals = {};
-  BRANCHES.forEach(b => {
+  branchesView.forEach(b => {
     branchTotals[b.id] = { pt: 0, member: 0, plan: 0, total: 0 };
     b.employees.forEach(e => {
       const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
@@ -1320,7 +1352,7 @@ function renderOverviewView() {
   const kpiEl = document.getElementById('ovKpis');
   if (kpiEl) {
     let kpiHtml = '';
-    BRANCHES.forEach(b => {
+    branchesView.forEach(b => {
       const bt = branchTotals[b.id];
       const accent = branchColor(b.id);
       kpiHtml += '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid ' + accent + ';border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04)">' +
@@ -1355,8 +1387,8 @@ function renderOverviewView() {
   // Per-branch daily totals
   const days = Object.keys(byDate).sort();
   const branchDailyByDate = {};
-  BRANCHES.forEach(b => { branchDailyByDate[b.id] = {}; days.forEach(d => { branchDailyByDate[b.id][d] = 0; }); });
-  BRANCHES.forEach(b => b.employees.forEach(e => {
+  branchesView.forEach(b => { branchDailyByDate[b.id] = {}; days.forEach(d => { branchDailyByDate[b.id][d] = 0; }); });
+  branchesView.forEach(b => b.employees.forEach(e => {
     const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
     for (const d in es) {
       if (!inDateRange(d, r.from, r.to)) continue;
@@ -1406,7 +1438,7 @@ function renderOverviewView() {
   if (ovDailyChart) ovDailyChart.destroy();
   ovDailyChart = new Chart(document.getElementById('ovDailyChart'), {
     type: 'bar',
-    data: { labels: days, datasets: BRANCHES.map(b => ({
+    data: { labels: days, datasets: branchesView.map(b => ({
       label: b.emoji + ' สาขา' + b.name,
       data: days.map(d => branchDailyByDate[b.id][d] || 0),
       backgroundColor: branchColor(b.id),
@@ -1437,7 +1469,7 @@ function renderOverviewEmpBreakdown(r) {
   const todayDate = new Date().toISOString().slice(0, 10);
   const kpiTarget = monthlyKPITarget(todayDate);
   let html = '';
-  BRANCHES.forEach(b => {
+  filteredBranches().forEach(b => {
     const rows = b.employees.map(e => {
       const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
       let pt = 0, mem = 0, plan = 0, days = 0;
@@ -1681,7 +1713,7 @@ function renderSummaryChartView() {
     '<button type="button" class="sc-save-all" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 ดาวน์โหลดทั้งหมด (.jpg)</button>' +
     '</div></div></div>';
 
-  BRANCHES.forEach(br => {
+  filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
@@ -1814,7 +1846,7 @@ function renderSummaryChartView() {
     }
   };
 
-  BRANCHES.forEach(br => {
+  filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
@@ -2177,12 +2209,12 @@ function renderHistoryView() {
 
   const bSel = document.getElementById('hsBranch');
   if (bSel && bSel.dataset.populated !== '1') {
-    const cur = bSel.value;
     bSel.innerHTML = '<option value="">🏢 ทุกสาขา</option>' +
       BRANCHES.map(b => '<option value="' + b.id + '">' + b.emoji + ' สาขา' + b.name + '</option>').join('');
-    bSel.value = cur;
     bSel.dataset.populated = '1';
   }
+  // Mirror global filter into history's per-page branch filter
+  if (bSel) bSel.value = globalBranchFilter || '';
 
   const mode = document.getElementById('hsMode') ? document.getElementById('hsMode').value : 'single';
   const sg = document.getElementById('hsSingleGroup');
