@@ -945,7 +945,7 @@ function renderRankingTrainerView() {
   const branchHtml = BRANCHES.map(br => {
     const trainers = br.employees
       .filter(e => (e.position || 'Sale') === 'Personal Trainer')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days, pt: t.pt, member: t.member }; })
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
       .sort((a, b) => b.train - a.train);
     const branchTrainTotal = trainers.reduce((s, r) => s + r.train, 0);
     const maxTrain = Math.max(...trainers.map(r => r.train), 1);
@@ -967,9 +967,6 @@ function renderRankingTrainerView() {
           '<div class="ranking-info">' +
           '<div class="ranking-name">' + r.emp.name + '</div>' +
           '<div class="ranking-meta">💪 Personal Trainer · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
-          '<div class="ranking-breakdown">' +
-          '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
-          '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
           '</div>' +
           '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div></div>' +
@@ -990,7 +987,7 @@ function renderRankingTrainerView() {
   BRANCHES.forEach(br => br.employees.forEach(e => {
     if ((e.position || 'Sale') !== 'Personal Trainer') return;
     const t = empDailyTotals(br.id, e.id);
-    all.push({ branch: br, emp: e, train: t.train, days: t.days, pt: t.pt, member: t.member });
+    all.push({ branch: br, emp: e, train: t.train, days: t.days });
   }));
   all.sort((a, b) => b.train - a.train);
 
