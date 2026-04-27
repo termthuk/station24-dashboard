@@ -1270,7 +1270,7 @@ function renderOverviewEmpBreakdown(r) {
           : '';
         const quotaBadge = belowQuota
           ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(DAILY_QUOTA) + '</span></div>'
-          : '';
+          : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#166534;font-weight:700">✅ ถึงเป้า ฿' + fmt0(DAILY_QUOTA) + '</span><span style="color:#14532D;font-weight:800">ยอด ฿' + fmt0(x.total) + '</span></div>';
         const rankBadge = i === 0 && x.total > 0
           ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px">🏆 #1</span>'
           : '';
