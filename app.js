@@ -1119,7 +1119,7 @@ function renderOverviewView() {
     const es = (DAILY[b.id] && DAILY[b.id][e.id]) || {};
     for (const d in es) {
       if (!inDateRange(d, r.from, r.to)) continue;
-      const tot = (+es[d].pt||0) + (+es[d].member||0) + (+es[d].plan||0);
+      const tot = (+es[d].pt||0) + (+es[d].member||0);
       if (branchDailyByDate[b.id][d] === undefined) branchDailyByDate[b.id][d] = 0;
       branchDailyByDate[b.id][d] += tot;
     }
