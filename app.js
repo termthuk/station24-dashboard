@@ -1046,8 +1046,10 @@ function renderRankingTrainerView() {
           '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
           '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
           '</div>' +
-          '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div></div>' +
-          (canManage() ? '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' : '') +
+          '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div>' +
+          (canEditBranch(br.id) ? '<button class="train-edit-btn" data-bid="' + br.id + '" data-eid="' + r.emp.id + '" title="เพิ่ม/แก้จำนวนเทรนวันนี้" style="margin-top:6px;padding:4px 10px;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">✎ เทรน</button>' : '') +
+          '</div>' +
+          (canEditBranch(br.id) ? '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' : '') +
           '</div>';
       }).join('');
     }
@@ -1102,8 +1104,10 @@ function renderRankingTrainerView() {
         '<div class="ranking-meta">' + posIcon(r.emp.position) + ' ' + (r.emp.position || 'Sale') + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
         '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%;background:linear-gradient(90deg,#F59E0B,#92400E)"></div></div>' +
         '</div>' +
-        '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div></div>' +
-        (canManage() ? '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' : '') +
+        '<div class="ranking-total" style="color:#92400E">🏋 ' + fmtInt(r.train) + '<div style="font-size:10px;font-weight:600;color:var(--gray-text);margin-top:2px">ครั้ง</div>' +
+        (canEditBranch(r.branch.id) ? '<button class="train-edit-btn" data-bid="' + r.branch.id + '" data-eid="' + r.emp.id + '" title="เพิ่ม/แก้จำนวนเทรนวันนี้" style="margin-top:6px;padding:4px 10px;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700">✎ เทรน</button>' : '') +
+        '</div>' +
+        (canEditBranch(r.branch.id) ? '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' : '') +
         '</div>';
     }).join('');
   }
@@ -1117,6 +1121,27 @@ function renderRankingTrainerView() {
 
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
+  });
+  container.querySelectorAll('.train-edit-btn').forEach(btn => {
+    btn.onclick = ev => {
+      ev.stopPropagation();
+      const bid = btn.dataset.bid, eid = btn.dataset.eid;
+      const today = new Date().toISOString().slice(0, 10);
+      const cur = (DAILY[bid] && DAILY[bid][eid] && DAILY[bid][eid][today] && +DAILY[bid][eid][today].train) || 0;
+      const input = prompt('เพิ่มจำนวนเทรนสำหรับ ' + empName(eid) + '\nวันนี้ (' + today + ') ทำได้ ' + cur + ' ครั้ง\n\nกรอกจำนวนที่จะเพิ่ม (ลบใส่เครื่องหมาย -):', '1');
+      if (input === null) return;
+      const add = parseInt(input, 10);
+      if (isNaN(add) || add === 0) { showToast('⚠ ใส่ตัวเลขที่ถูกต้อง', true); return; }
+      const newTotal = Math.max(0, cur + add);
+      if (!DAILY[bid]) DAILY[bid] = {};
+      if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
+      const prev = DAILY[bid][eid][today] || { pt: 0, member: 0, plan: 0, train: 0 };
+      DAILY[bid][eid][today] = { pt: +prev.pt || 0, member: +prev.member || 0, plan: +prev.plan || 0, train: newTotal };
+      saveDaily();
+      if (add > 0) logSale(bid, eid, today, 0, 0, 0, add);
+      renderRankingTrainerView();
+      showToast('✓ ' + empName(eid) + ': ' + (add > 0 ? '+' : '') + add + ' เทรน (รวมวันนี้ ' + newTotal + ')');
+    };
   });
 }
 
