@@ -97,8 +97,11 @@ let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
 
-// chartjs-plugin-datalabels: enable on every chart with sensible defaults
+// chartjs-plugin-datalabels: register globally + sensible defaults so every chart shows numbers
 if (typeof Chart !== 'undefined') {
+  if (typeof ChartDataLabels !== 'undefined') {
+    try { Chart.register(ChartDataLabels); } catch(e) {}
+  }
   Chart.defaults.set('plugins.datalabels', {
     display: ctx => {
       const v = ctx.dataset.data[ctx.dataIndex];
@@ -456,7 +459,12 @@ function renderEmpMiniCharts() {
       ]},
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 6, boxWidth: 12 } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        layout: { padding: { top: 18 } },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 6, boxWidth: 12 } },
+          tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
+          datalabels: { font: { size: 8, weight: 700 }, offset: 4, color: ctx => ctx.dataset.borderColor }
+        },
         scales: { y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtShort(v), font: { size: 9 }, color: '#6B7280' }, grid: { color: '#F3F4F6' } },
           x: { ticks: { font: { size: 9 }, color: '#6B7280', maxRotation: 0 }, grid: { display: false } } }
       }
@@ -691,8 +699,10 @@ function renderIndividualView() {
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 24 } },
       plugins: { legend: { position: 'bottom', labels: { padding: 14, font: { weight: 600 } } },
-        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
+        datalabels: { anchor: 'end', align: 'end', offset: 2, font: { size: 9, weight: 700 } } },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600 } } },
         y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), color: '#4B5563' }, grid: { color: '#F3F4F6' } }
@@ -710,7 +720,9 @@ function renderIndividualView() {
     ]},
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } } },
+      layout: { padding: { right: 60 } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => '฿' + fmt0(c.raw) } },
+        datalabels: { anchor: 'end', align: 'right', offset: 4, font: { size: 10, weight: 700 } } },
       scales: {
         x: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), color: '#4B5563' }, grid: { color: '#F3F4F6' } },
         y: { ticks: { color: '#1F1F1F', font: { weight: 700 } }, grid: { display: false } }
@@ -1160,8 +1172,10 @@ function renderOverviewView() {
       borderRadius: 4
     }))},
     options: { responsive:true, maintainAspectRatio:false,
+      layout: { padding: { top: 24 } },
       plugins: { legend: { position:'bottom', labels: { padding:10, font:{ size:11, weight:600 } } },
-        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ฿' + fmt0(c.raw) } },
+        datalabels: { anchor: 'end', align: 'end', offset: 2, font: { size: 8, weight: 700 }, rotation: -90 } },
       scales: {
         x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#1F1F1F' } },
         y: { beginAtZero: true, ticks: { callback: v => '฿'+fmtInt(v), font: { size: 10 } }, grid: { color:'#F3F4F6' } }
