@@ -197,7 +197,7 @@ function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.bran
 function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 
 function normalizeData() {
-  BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
+  BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; delete e.team; }));
   BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
 }
 normalizeData();
@@ -546,8 +546,6 @@ function renderBranchInline() {
       const t = empDailyTotals(br.id, e.id);
       const pos = e.position || 'Sale';
       const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
-      const team = e.team || 'A';
-      const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
       const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0};
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
       const todayTotal = todayPT + todayMEM + todayPLAN;
@@ -564,10 +562,6 @@ function renderBranchInline() {
         '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
         '<option value="Sale"' + (pos==='Sale'?' selected':'') + '>💼 Sale</option>' +
-        '</select>' +
-        '<select class="inline-team-select" data-eid="' + e.id + '" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;border:1px solid var(--gray-line);background:' + teamColor.bg + ';color:' + teamColor.text + ';cursor:pointer">' +
-        '<option value="A"' + (team==='A'?' selected':'') + '>🅰 ทีม A</option>' +
-        '<option value="B"' + (team==='B'?' selected':'') + '>🅱 ทีม B</option>' +
         '</select>' +
         '</div>' +
         '<div class="emp-card-id">' + e.id + '</div></div></div>' +
@@ -645,7 +639,7 @@ function renderBranchInline() {
       const position = document.getElementById('newEmpPosInline').value;
       if (!name) { input.focus(); return; }
       if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
-      br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '', team: 'A' });
+      br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
       saveBranches();
       renderBranchView();
       showToast('✓ เพิ่ม ' + name);
@@ -663,13 +657,6 @@ function renderBranchInline() {
 
   container.querySelectorAll('[data-emp-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.empEdit); };
-  });
-
-  container.querySelectorAll('.inline-team-select').forEach(sel => {
-    sel.onchange = () => {
-      const emp = br.employees.find(x => x.id === sel.dataset.eid);
-      if (emp) { emp.team = sel.value; saveBranches(); renderBranchView(); showToast('✓ ' + emp.name + ' → ทีม ' + sel.value); }
-    };
   });
 
   container.querySelectorAll('[data-emp-del]').forEach(btn => {
@@ -954,7 +941,6 @@ function openEditEmpModal(empId) {
   if(document.getElementById('editEmpSubtitle'))document.getElementById('editEmpSubtitle').textContent = e.name + ' · ' + e.id;
   if(document.getElementById('editEmpName'))document.getElementById('editEmpName').value = e.name;
   if(document.getElementById('editEmpPosition'))document.getElementById('editEmpPosition').value = e.position || 'Sale';
-  if(document.getElementById('editEmpTeam'))document.getElementById('editEmpTeam').value = e.team || 'A';
   updateEditEmpPhotoPreview();
   document.getElementById('editEmpModal').classList.add('show');
 }
@@ -974,9 +960,8 @@ function saveEditEmp() {
   const e = empById(activeEditEmp); if (!e) return;
   const name = document.getElementById('editEmpName').value.trim();
   const pos = document.getElementById('editEmpPosition').value;
-  const team = (document.getElementById('editEmpTeam') || {}).value || 'A';
   if (!name) { showToast('⚠ กรุณาใส่ชื่อ', true); return; }
-  e.name = name; e.position = pos; e.team = team; e.photo = editEmpPhotoBase64;
+  e.name = name; e.position = pos; e.photo = editEmpPhotoBase64;
   saveBranches(); closeEditEmpModal();
   if (currentView === 'branch') renderBranchView();
   else if (currentView === 'individual') renderIndividualView();
@@ -1020,7 +1005,7 @@ function addEmployee() {
   if (!name) { input.focus(); return; }
   const br = getBranch(activeBranch);
   if (br.employees.some(e => e.name === name)) { showToast('⚠ มีชื่อนี้แล้ว', true); return; }
-  br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '', team: 'A' });
+  br.employees.push({ id: newEmpId(activeBranch), name: name, position: position, photo: '' });
   saveBranches(); input.value = ''; renderBranchView(); showToast('✓ เพิ่ม ' + name);
 }
 document.getElementById('addEmpBtn')?.addEventListener('click', addEmployee);
@@ -1447,16 +1432,11 @@ function renderSummaryChartView() {
     '</div></div></div>';
 
   BRANCHES.forEach(br => {
-    const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
+    const all = br.employees
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
-    const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
-      .sort((a, b) => b.total - a.total);
-    const totA = empsA.reduce((s, r) => s + r.total, 0);
-    const totB = empsB.reduce((s, r) => s + r.total, 0);
-    const totBr = totA + totB;
-    const totalCount = empsA.length + empsB.length;
+    const totBr = all.reduce((s, r) => s + r.total, 0);
+    const totalCount = all.length;
     const chartH = Math.max(360, totalCount * 32 + 100);
 
     html += '<div class="card" style="margin-bottom:20px" data-sc-card="' + br.id + '">' +
@@ -1467,14 +1447,8 @@ function renderSummaryChartView() {
       '<button type="button" class="sc-save-btn" data-bid="' + br.id + '" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
       '</div></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' +
-      '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px">' +
-      '<div style="font-size:11px;font-weight:700;color:#92400E">🅰 ทีม A · ' + empsA.length + ' คน</div>' +
-      '<div style="font-size:18px;font-weight:800;color:#92400E;margin-top:2px">฿' + fmt0(totA) + '</div></div>' +
-      '<div style="flex:1;min-width:180px;padding:10px 14px;background:#DBEAFE;border-left:4px solid #2563EB;border-radius:8px">' +
-      '<div style="font-size:11px;font-weight:700;color:#1E40AF">🅱 ทีม B · ' + empsB.length + ' คน</div>' +
-      '<div style="font-size:18px;font-weight:800;color:#1E40AF;margin-top:2px">฿' + fmt0(totB) + '</div></div>' +
       '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEE2E2;border-left:4px solid #DC2626;border-radius:8px">' +
-      '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 รวมทั้งสาขา</div>' +
+      '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 รวม PT+MEM · ' + totalCount + ' คน</div>' +
       '<div style="font-size:18px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(totBr) + '</div></div>' +
       '</div>' +
       (totalCount === 0
@@ -1486,76 +1460,10 @@ function renderSummaryChartView() {
 
   container.innerHTML = html;
 
-  // Plugin to draw team A/B background zones and divider on combined chart
-  const teamZonePlugin = {
-    id: 'teamZones',
-    beforeDraw(chart, _args, opts) {
-      const cnt = opts && opts.aCount;
-      const tot = opts && opts.totalCount;
-      if (!tot || cnt === undefined) return;
-      const { ctx, chartArea, scales } = chart;
-      if (!chartArea) return;
-      const xScale = scales.x;
-      if (!xScale) return;
-      ctx.save();
-      // Team A zone (left)
-      if (cnt > 0) {
-        const rightEdge = cnt < tot
-          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
-          : chartArea.right;
-        ctx.fillStyle = 'rgba(245,158,11,0.08)';
-        ctx.fillRect(chartArea.left, chartArea.top, rightEdge - chartArea.left, chartArea.bottom - chartArea.top);
-      }
-      // Team B zone (right)
-      if (cnt < tot) {
-        const leftEdge = cnt > 0
-          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
-          : chartArea.left;
-        ctx.fillStyle = 'rgba(37,99,235,0.08)';
-        ctx.fillRect(leftEdge, chartArea.top, chartArea.right - leftEdge, chartArea.bottom - chartArea.top);
-        // Divider line
-        if (cnt > 0) {
-          ctx.strokeStyle = 'rgba(31,31,31,0.4)';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([6, 4]);
-          ctx.beginPath();
-          ctx.moveTo(leftEdge, chartArea.top);
-          ctx.lineTo(leftEdge, chartArea.bottom);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-      }
-      // Team labels at top
-      ctx.fillStyle = '#92400E';
-      ctx.font = 'bold 12px "Segoe UI","Noto Sans Thai",Arial,sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      if (cnt > 0) {
-        const aMid = (chartArea.left + (cnt < tot
-          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
-          : chartArea.right)) / 2;
-        ctx.fillText('🅰 ทีม A', aMid, chartArea.top + 2);
-      }
-      if (cnt < tot) {
-        ctx.fillStyle = '#1E40AF';
-        const bLeft = cnt > 0
-          ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
-          : chartArea.left;
-        const bMid = (bLeft + chartArea.right) / 2;
-        ctx.fillText('🅱 ทีม B', bMid, chartArea.top + 2);
-      }
-      ctx.restore();
-    }
-  };
-
   BRANCHES.forEach(br => {
-    const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
+    const all = br.employees
+      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
-    const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'B', ...t, total: t.pt + t.member }; })
-      .sort((a, b) => b.total - a.total);
-    const all = empsA.concat(empsB);
     if (!all.length) return;
 
     const ctx = document.getElementById('scCombined_' + br.id);
@@ -1577,7 +1485,7 @@ function renderSummaryChartView() {
             title: items => {
               if (!items.length) return '';
               const i = items[0].dataIndex;
-              return all[i].emp.name + ' · ทีม ' + all[i].team;
+              return all[i].emp.name;
             },
             label: c => c.dataset.label + ': ฿' + fmt0(c.raw)
           } },
@@ -1586,15 +1494,13 @@ function renderSummaryChartView() {
             anchor: 'end', align: 'end', offset: 2,
             color: '#1F1F1F', font: { size: 9, weight: 700 },
             formatter: v => '฿' + fmtShort(v)
-          },
-          teamZones: { aCount: empsA.length, totalCount: all.length }
+          }
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
           y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
         }
-      },
-      plugins: [teamZonePlugin]
+      }
     });
   });
 
@@ -1802,14 +1708,13 @@ function saveBranchChart(branchId, fmt, silent) {
   const src = chart && chart.canvas && chart.canvas.width ? chart.canvas : null;
   if (!src) { if (!silent) showToast('⚠ ไม่มีกราฟ', true); return false; }
 
-  let totA = 0, totB = 0;
+  let totBr = 0;
   br.employees.forEach(e => {
     const t = empDailyTotals(branchId, e.id);
-    const sub = t.pt + t.member;
-    if ((e.team || 'A') === 'A') totA += sub; else totB += sub;
+    totBr += t.pt + t.member;
   });
 
-  const headerH = 130;
+  const headerH = 110;
   const footerH = 40;
   const pad = 20;
   const W = Math.max(src.width, 900);
@@ -1830,13 +1735,9 @@ function saveBranchChart(branchId, fmt, silent) {
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
   ctx.fillText(br.emoji + '  สาขา' + br.name, pad, 52);
 
-  ctx.fillStyle = '#92400E';
-  ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText('🅰 ทีม A: ฿' + fmt0(totA), pad, 82);
-  ctx.fillStyle = '#1E40AF';
-  ctx.fillText('🅱 ทีม B: ฿' + fmt0(totB), pad + 200, 82);
   ctx.fillStyle = '#991B1B';
-  ctx.fillText('💰 รวม: ฿' + fmt0(totA + totB), pad + 400, 82);
+  ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.fillText('💰 รวม PT+MEM: ฿' + fmt0(totBr), pad, 82);
 
   const cx = Math.round((W - src.width) / 2);
   ctx.drawImage(src, cx, headerH);
@@ -1897,7 +1798,7 @@ function hsCollectRows() {
       logId: en.id, date: en.date, time: en.time || '',
       branchId: br.id, branchName: br.name, branchEmoji: br.emoji,
       empId: en.empId, empName: e.name || en.empId,
-      position: e.position || 'Sale', team: e.team || 'A',
+      position: e.position || 'Sale',
       photo: e.photo || '',
       pt: pt, member: m, plan: pl, total: pt + m + pl
     });
@@ -1968,7 +1869,6 @@ function renderHistoryView() {
         '<th>พนักงาน</th>' +
         '<th>รหัส</th>' +
         '<th>ตำแหน่ง</th>' +
-        '<th>ทีม</th>' +
         '<th class="num">💪 PT</th>' +
         '<th class="num">🎫 MEMBER</th>' +
         '<th class="num">📋 PLAN</th>' +
@@ -1978,9 +1878,6 @@ function renderHistoryView() {
         '<tbody>' +
         brRows.map(x => {
           const posIcon = x.position === 'Personal Trainer' ? '💪' : '💼';
-          const team = x.team || 'A';
-          const teamBg = team === 'A' ? '#FEF3C7' : '#DBEAFE';
-          const teamFg = team === 'A' ? '#92400E' : '#1E40AF';
           const av = x.photo
             ? '<img src="' + x.photo + '" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1.5px solid ' + accent + '">'
             : '<div style="width:32px;height:32px;border-radius:50%;background:' + avatarColor(x.empId) + ';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">' + avatarInitials(x.empName) + '</div>';
@@ -1990,7 +1887,6 @@ function renderHistoryView() {
             '<td><div style="display:flex;align-items:center;gap:8px">' + av + '<span>' + x.empName + '</span></div></td>' +
             '<td style="font-family:monospace;font-size:11px;color:var(--gray-text)">' + x.empId + '</td>' +
             '<td><span class="pos-chip ' + (x.position==='Personal Trainer'?'pt-pos':'sale-pos') + '">' + posIcon + ' ' + x.position + '</span></td>' +
-            '<td><span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;background:' + teamBg + ';color:' + teamFg + '">' + (team === 'A' ? '🅰' : '🅱') + ' ' + team + '</span></td>' +
             '<td class="num" style="color:#DC2626">฿' + fmt0(x.pt) + '</td>' +
             '<td class="num">฿' + fmt0(x.member) + '</td>' +
             '<td class="num" style="color:#D97706">฿' + fmt0(x.plan) + '</td>' +
@@ -1999,7 +1895,7 @@ function renderHistoryView() {
             '</tr>';
         }).join('') +
         '<tr style="background:#FAFAFA;font-weight:800">' +
-        '<td colspan="6" style="text-align:right">รวมสาขา' + b.name + '</td>' +
+        '<td colspan="5" style="text-align:right">รวมสาขา' + b.name + '</td>' +
         '<td class="num" style="color:#DC2626">฿' + fmt0(sP) + '</td>' +
         '<td class="num">฿' + fmt0(sM) + '</td>' +
         '<td class="num" style="color:#D97706">฿' + fmt0(sPl) + '</td>' +
