@@ -1420,7 +1420,7 @@ function rangeDayCount(r) {
 function renderOverviewEmpBreakdown(r) {
   const box = document.getElementById('ovEmpBreakdown');
   if (!box) return;
-  const kpiTarget = rangeDayCount(r) * DAILY_QUOTA;
+  const kpiTarget = Math.min(rangeDayCount(r), 30) * DAILY_QUOTA;
   let html = '';
   BRANCHES.forEach(b => {
     const rows = b.employees.map(e => {
