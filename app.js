@@ -254,10 +254,10 @@ function avatarHTML(e, cls) {
 }
 
 // Cumulative monthly KPI: starts at DAILY_QUOTA on day 1, +DAILY_QUOTA every day,
-// resets on the 1st of each month.
+// caps at 30 × DAILY_QUOTA, resets on the 1st of each month.
 function monthlyKPITarget(dateStr) {
   const day = parseInt(dateStr.slice(8, 10), 10) || 1;
-  return day * DAILY_QUOTA;
+  return Math.min(day, 30) * DAILY_QUOTA;
 }
 function empMTDPTMem(bid, eid, asOfDate) {
   const entries = (DAILY[bid] && DAILY[bid][eid]) || {};
@@ -1406,21 +1406,15 @@ function renderOverviewView() {
   renderOverviewEmpBreakdown(r);
 }
 
-// Number of calendar days covered by a date range (inclusive). Falls back to today
-// for open-ended ranges; min 1.
-function rangeDayCount(r) {
-  const today = new Date().toISOString().slice(0,10);
-  const from = r.from || today;
-  const to = r.to || today;
-  const ms = new Date(to + 'T00:00:00') - new Date(from + 'T00:00:00');
-  return Math.max(1, Math.round(ms / 86400000) + 1);
-}
-
-// Per-employee breakdown grouped by branch (Overview page) — full emp-card style
+// Per-employee breakdown grouped by branch (Overview page) — full emp-card style.
+// KPI is anchored to today's calendar month: kpi = min(day_of_today, 30) × 5000;
+// auto-resets on the 1st of each month. The range filter only affects the
+// PT/MEM/PLAN/total numbers shown on the card.
 function renderOverviewEmpBreakdown(r) {
   const box = document.getElementById('ovEmpBreakdown');
   if (!box) return;
-  const kpiTarget = Math.min(rangeDayCount(r), 30) * DAILY_QUOTA;
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const kpiTarget = monthlyKPITarget(todayDate);
   let html = '';
   BRANCHES.forEach(b => {
     const rows = b.employees.map(e => {
@@ -1432,8 +1426,9 @@ function renderOverviewEmpBreakdown(r) {
         if (_pt || _m || _pl) days++;
         pt += _pt; mem += _m; plan += _pl;
       }
-      return { emp: e, pt, mem, plan, days, total: pt + mem };
-    }).sort((a, b) => b.total - a.total);
+      const mtd = empMTDPTMem(b.id, e.id, todayDate);
+      return { emp: e, pt, mem, plan, days, total: pt + mem, mtd };
+    }).sort((a, b) => b.mtd - a.mtd);
 
     const branchSum = rows.reduce((s, x) => s + x.total, 0);
     const accent = branchColor(b.id);
@@ -1453,19 +1448,19 @@ function renderOverviewEmpBreakdown(r) {
         const pos = e.position || 'Sale';
         const pc = pos === 'Personal Trainer' ? 'pt-pos' : 'sale-pos';
         const posIcon = pos === 'Personal Trainer' ? '💪' : '💼';
-        const belowQuota = x.total < kpiTarget;
-        const shortfall = Math.max(kpiTarget - x.total, 0);
+        const belowQuota = x.mtd < kpiTarget;
+        const shortfall = Math.max(kpiTarget - x.mtd, 0);
         const cardStyle = belowQuota
           ? 'border:2px solid #DC2626;box-shadow:0 0 0 2px rgba(220,38,38,0.08)'
           : '';
         const nameStyle = belowQuota ? 'color:#DC2626' : '';
         const nameTitle = belowQuota
-          ? ' title="ยอดสะสมไม่ถึง KPI (ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.total) + ')"'
-          : ' title="ถึง KPI แล้ว · ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.total) + '"';
+          ? ' title="ยอดสะสมเดือนนี้ยังไม่ถึง KPI (ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.mtd) + ')"'
+          : ' title="ถึง KPI แล้ว · ต้องการ ฿' + fmt0(kpiTarget) + ' · ทำได้ ฿' + fmt0(x.mtd) + '"';
         const quotaBadge = belowQuota
           ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(kpiTarget) + '</span></div>'
-          : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">ยอด ฿' + fmt0(x.total) + '</span></div>';
-        const rankBadge = i === 0 && x.total > 0
+          : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 8px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">เดือนนี้ ฿' + fmt0(x.mtd) + '</span></div>';
+        const rankBadge = i === 0 && x.mtd > 0
           ? '<span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;margin-left:6px">🏆 #1</span>'
           : '';
         html += '<div class="emp-card"' + (cardStyle ? ' style="' + cardStyle + '"' : '') + '>' +
