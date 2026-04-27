@@ -57,8 +57,40 @@ const CHART_COLOR_PRESETS = [
   { id: 'neon',    name: 'นีออน',                   pt: '#EF4444', member: '#06B6D4', plan: '#A855F7' },
 ];
 
+// ===== Supabase cloud sync =====
+const SUPABASE_URL = 'https://qabbbdcllvkpqlppswkw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhYmJiZGNsbHZrcHFscHBzd2t3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzQ0MDEsImV4cCI6MjA5MjgxMDQwMX0.2fIr_sRUFFlxNRiK4bcD3DTiWNdL8HxO106hYttunDc';
+const SYNC_KEYS = [
+  'station24_branches_v2',
+  'station24_daily_v1',
+  'station24_sales_log_v1',
+  'station24_chart_colors_v1',
+  'station24_branch_colors_v1',
+  'station24_users_v1'
+];
+let supabaseClient = null;
+let _suppressSync = false;
+let _pendingPush = {};
+let _pushTimer = null;
+
 function loadJSON(key, fb) { try { const r = localStorage.getItem(key); if (r) return JSON.parse(r); } catch(e){} return JSON.parse(JSON.stringify(fb)); }
-function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){} }
+function saveJSON(key, v) {
+  try { localStorage.setItem(key, JSON.stringify(v)); } catch(e){}
+  if (!_suppressSync && supabaseClient && SYNC_KEYS.indexOf(key) >= 0) {
+    _pendingPush[key] = v;
+    clearTimeout(_pushTimer);
+    _pushTimer = setTimeout(flushPush, 250);
+  }
+}
+function flushPush() {
+  if (!supabaseClient) return;
+  const rows = Object.keys(_pendingPush).map(k => ({ key: k, value: _pendingPush[k], updated_at: new Date().toISOString() }));
+  _pendingPush = {};
+  if (!rows.length) return;
+  supabaseClient.from('app_state').upsert(rows).then(r => {
+    if (r.error) console.warn('☁ sync fail:', r.error.message);
+  });
+}
 function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
 function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
@@ -164,8 +196,11 @@ function isEditor() { return currentUser && currentUser.role === 'editor'; }
 function canSeeBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 function canEditBranch(bid) { return isAdmin() || (isEditor() && currentUser.branchId === bid); }
 
-BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
-BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
+function normalizeData() {
+  BRANCHES.forEach(b => b.employees.forEach(e => { if (!e.position) e.position = 'Sale'; if (!('photo' in e)) e.photo = ''; if (!e.team) e.team = 'A'; }));
+  BRANCHES.forEach(b => { if (!DAILY[b.id]) DAILY[b.id] = {}; });
+}
+normalizeData();
 
 let currentView = 'branch';
 let activeBranch = 'sriracha';
@@ -2274,3 +2309,83 @@ document.getElementById('logoutBtn')?.addEventListener('click', () => {
 
 loadSession();
 applyAuthUIBoot();
+
+// ===== Supabase sync bootstrap =====
+function applyKeyToGlobals(key, value) {
+  if (key === 'station24_branches_v2') BRANCHES = value;
+  else if (key === 'station24_daily_v1') DAILY = value;
+  else if (key === 'station24_sales_log_v1') LOG = value;
+  else if (key === 'station24_chart_colors_v1') CHART_COLORS = value;
+  else if (key === 'station24_branch_colors_v1') BRANCH_COLORS = value;
+  else if (key === 'station24_users_v1') {
+    USERS = value;
+    if (!USERS.some(u => u.role === 'admin')) USERS.unshift(DEFAULT_USERS[0]);
+  }
+}
+function reRenderCurrentView() {
+  try {
+    if (currentView === 'branch') renderBranchView();
+    else if (currentView === 'individual') renderIndividualView();
+    else if (currentView === 'ranking') renderRankingView();
+    else if (currentView === 'rankingall' && typeof renderRankingAllView === 'function') renderRankingAllView();
+    else if (currentView === 'summarychart') renderSummaryChartView();
+    else if (currentView === 'overview') renderOverviewView();
+    else if (currentView === 'history' && typeof renderHistoryView === 'function') renderHistoryView();
+    else if (currentView === 'addsales' && typeof renderAddSalesView === 'function') renderAddSalesView();
+    else if (currentView === 'users' && typeof renderUsersView === 'function') renderUsersView();
+  } catch(e) { console.warn('re-render fail:', e); }
+}
+async function bootstrapSupabase() {
+  if (typeof supabase === 'undefined' || !supabase.createClient) {
+    console.warn('☁ Supabase SDK not loaded — running offline');
+    return;
+  }
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  try {
+    const { data, error } = await supabaseClient.from('app_state').select('*');
+    if (error) { console.warn('☁ fetch fail:', error.message); return; }
+
+    if (!data || !data.length) {
+      console.log('☁ migrating local state to cloud...');
+      const rows = [
+        { key: 'station24_branches_v2', value: BRANCHES, updated_at: new Date().toISOString() },
+        { key: 'station24_daily_v1', value: DAILY, updated_at: new Date().toISOString() },
+        { key: 'station24_sales_log_v1', value: LOG, updated_at: new Date().toISOString() },
+        { key: 'station24_chart_colors_v1', value: CHART_COLORS, updated_at: new Date().toISOString() },
+        { key: 'station24_branch_colors_v1', value: BRANCH_COLORS, updated_at: new Date().toISOString() },
+        { key: 'station24_users_v1', value: USERS, updated_at: new Date().toISOString() }
+      ];
+      const r = await supabaseClient.from('app_state').upsert(rows);
+      if (r.error) console.warn('☁ migrate fail:', r.error.message);
+      else console.log('☁ migrated.');
+    } else {
+      _suppressSync = true;
+      data.forEach(row => {
+        if (SYNC_KEYS.indexOf(row.key) < 0) return;
+        try { localStorage.setItem(row.key, JSON.stringify(row.value)); } catch(e){}
+        applyKeyToGlobals(row.key, row.value);
+      });
+      _suppressSync = false;
+      normalizeData();
+      reRenderCurrentView();
+      console.log('☁ loaded from cloud.');
+    }
+
+    supabaseClient.channel('app_state_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, payload => {
+        const row = payload.new;
+        if (!row || SYNC_KEYS.indexOf(row.key) < 0) return;
+        _suppressSync = true;
+        try { localStorage.setItem(row.key, JSON.stringify(row.value)); } catch(e){}
+        applyKeyToGlobals(row.key, row.value);
+        _suppressSync = false;
+        normalizeData();
+        reRenderCurrentView();
+        if (typeof showToast === 'function') showToast('☁ ข้อมูลอัปเดตจากเครื่องอื่น');
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('☁ bootstrap error:', e && e.message);
+  }
+}
+bootstrapSupabase();
