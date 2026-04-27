@@ -45,6 +45,7 @@ const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
+const DAILY_QUOTA = 5000;
 
 const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
 const CHART_COLOR_PRESETS = [
@@ -549,6 +550,14 @@ function renderBranchInline() {
       const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0};
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
       const todayTotal = todayPT + todayMEM + todayPLAN;
+      const todayPTMem = todayPT + todayMEM;
+      const belowQuota = todayPTMem < DAILY_QUOTA;
+      const nameStyle = belowQuota
+        ? 'padding-right:60px;color:#9CA3AF'
+        : 'padding-right:60px';
+      const nameTitle = belowQuota
+        ? ' title="ยังไม่ถึงยอดขั้นต่ำ ฿' + fmt0(DAILY_QUOTA) + '/วัน (วันนี้ ฿' + fmt0(todayPTMem) + ')"'
+        : '';
       const todayBadge = todayTotal > 0
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
@@ -557,7 +566,7 @@ function renderBranchInline() {
         '<button class="emp-card-delete" data-emp-del="' + e.id + '" title="ลบ ' + e.name + '" style="position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;background:#FEE2E2;color:#991B1B;border:none;cursor:pointer;font-size:13px;font-weight:700;z-index:5">✕</button>' +
         '<div class="emp-card-header">' + avatarHTML(e) +
         '<div class="emp-card-info">' +
-        '<div class="emp-card-name" style="padding-right:60px">' + e.name + '</div>' +
+        '<div class="emp-card-name" style="' + nameStyle + '"' + nameTitle + '>' + e.name + '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
         '<select class="inline-pos-select ' + pc + '" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
         '<option value="Personal Trainer"' + (pos==='Personal Trainer'?' selected':'') + '>💪 PT</option>' +
