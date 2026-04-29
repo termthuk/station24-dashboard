@@ -430,16 +430,16 @@ function renderMenuNav() {
   let html =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติการขาย</span></button>';
   if (isAdmin()) {
     html += '<button class="menu-item ' + (currentView==='users'?'active':'') + '" data-view="users"><span class="menu-item-icon">👥</span><span>จัดการผู้ใช้/สาขา</span></button>';
   }
-  // Cumulative / all-branch ranking group — bottom of menu
+  // Cumulative / ranking group — bottom of menu
   html +=
     '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายสะสม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
+    '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
+    '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>' +
     '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับพนักงานทุกสาขา</span></button>';
   nav.innerHTML = html;
   nav.querySelectorAll('.menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
