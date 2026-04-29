@@ -1757,7 +1757,7 @@ function renderSummaryChartView() {
         '<div style="font-size:18px;font-weight:800;color:' + g.team.color + ';margin-top:2px">฿' + fmt0(branchTotals[i]) + '</div></div>';
     }).join('') +
     '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEE2E2;border-left:4px solid #DC2626;border-radius:8px">' +
-    '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 รวม A+B+C</div>' +
+    '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 ยอดรวม</div>' +
     '<div style="font-size:18px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(grandTotal) + '</div></div>';
     html += '<div class="card" style="margin-bottom:20px" data-sc-card="three">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:12px">' +
