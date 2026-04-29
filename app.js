@@ -430,15 +430,17 @@ function renderMenuNav() {
   let html =
     '<button class="menu-item ' + (currentView==='overview'?'active':'') + '" data-view="overview"><span class="menu-item-icon">📊</span><span>ภาพรวม</span></button>' +
     '<button class="menu-item ' + (currentView==='summarychart'?'active':'') + '" data-view="summarychart"><span class="menu-item-icon">📊</span><span>กราฟสรุปยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายรวม 1 ปี</span></button>' +
-    '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนรวม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับยอดขาย (รวมทุกสาขา)</span></button>' +
     '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติการขาย</span></button>';
   if (isAdmin()) {
     html += '<button class="menu-item ' + (currentView==='users'?'active':'') + '" data-view="users"><span class="menu-item-icon">👥</span><span>จัดการผู้ใช้/สาขา</span></button>';
   }
+  // Cumulative / all-branch ranking group — bottom of menu
+  html +=
+    '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายสะสม 1 ปี</span></button>' +
+    '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
+    '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับพนักงานทุกสาขา</span></button>';
   nav.innerHTML = html;
   nav.querySelectorAll('.menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
 }
@@ -2118,36 +2120,36 @@ function renderYearSalesView() {
   renderSidebar();
   const r = oneYearRangeBKK();
   const badge = document.getElementById('ysRangeBadge');
-  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + thaiDate(r.from) + ' — ' + thaiDate(r.to) + '</strong> <span style="color:var(--gray-text);font-weight:600;margin-left:6px">(ย้อนหลัง 12 เดือน · อัปเดตอัตโนมัติทุกวัน)</span>';
+  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + thaiDate(r.from) + ' — ' + thaiDate(r.to) + '</strong> <span style="color:var(--gray-text);font-weight:600;margin-left:6px">(ย้อนหลัง 12 เดือน · อัปเดตอัตโนมัติทุกวัน · เฉพาะ PT+MEM)</span>';
 
   const branchesView = filteredBranches();
-  let gPT = 0, gMEM = 0, gPLAN = 0, gDays = 0;
+  let gPT = 0, gMEM = 0, gDays = 0;
   const branchTotals = branchesView.map(br => {
-    let pt = 0, mem = 0, pl = 0, days = 0;
+    let pt = 0, mem = 0, days = 0;
     const empRows = br.employees.map(e => {
       const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
-      let ept = 0, em = 0, epl = 0, ed = 0;
+      let ept = 0, em = 0, ed = 0;
       for (const d in es) {
         if (d < r.from || d > r.to) continue;
         const x = es[d];
-        const a = +x.pt || 0, b = +x.member || 0, c = +x.plan || 0;
-        if (!a && !b && !c) continue;
-        ept += a; em += b; epl += c; ed++;
+        const a = +x.pt || 0, b = +x.member || 0;
+        if (!a && !b) continue;
+        ept += a; em += b; ed++;
       }
-      pt += ept; mem += em; pl += epl; days += ed;
-      return { emp: e, pt: ept, member: em, plan: epl, days: ed, total: ept + em + epl };
+      pt += ept; mem += em; days += ed;
+      return { emp: e, pt: ept, member: em, days: ed, total: ept + em };
     }).sort((a, b) => b.total - a.total);
-    return { branch: br, pt: pt, member: mem, plan: pl, days: days, total: pt + mem + pl, emps: empRows };
+    return { branch: br, pt: pt, member: mem, days: days, total: pt + mem, emps: empRows };
   });
-  branchTotals.forEach(b => { gPT += b.pt; gMEM += b.member; gPLAN += b.plan; gDays += b.days; });
-  const gT = gPT + gMEM + gPLAN;
+  branchTotals.forEach(b => { gPT += b.pt; gMEM += b.member; gDays += b.days; });
+  const gT = gPT + gMEM;
 
   let html =
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
-      '<div style="font-size:12px;font-weight:700;opacity:0.9">💰 ยอดขายรวมทั้งหมด</div>' +
+      '<div style="font-size:12px;font-weight:700;opacity:0.9">💰 ยอดขายสะสมทั้งหมด</div>' +
       '<div style="font-size:26px;font-weight:900;margin-top:4px">฿' + fmt0(gT) + '</div>' +
-      '<div style="font-size:11px;opacity:0.85;margin-top:4px">PT + MEMBER + PLAN · ' + gDays + ' วันที่บันทึก</div>' +
+      '<div style="font-size:11px;opacity:0.85;margin-top:4px">PT + MEMBER · ' + gDays + ' วันที่บันทึก</div>' +
     '</div>' +
     '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
       '<div style="font-size:12px;font-weight:700;color:#991B1B">💪 ยอด PT</div>' +
@@ -2158,11 +2160,6 @@ function renderYearSalesView() {
       '<div style="font-size:12px;font-weight:700;color:#1F1F1F">🎫 ยอด MEMBER</div>' +
       '<div style="font-size:22px;font-weight:900;color:#1F1F1F;margin-top:4px">฿' + fmt0(gMEM) + '</div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + (gT ? Math.round(gMEM / gT * 100) : 0) + '% ของยอดรวม</div>' +
-    '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #6B7280;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#374151">📋 ยอด PLAN</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#374151;margin-top:4px">฿' + fmt0(gPLAN) + '</div>' +
-      '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + (gT ? Math.round(gPLAN / gT * 100) : 0) + '% ของยอดรวม</div>' +
     '</div>' +
     '</div>';
 
@@ -2178,7 +2175,6 @@ function renderYearSalesView() {
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">' +
       '<div style="background:#FEF2F2;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#991B1B">💪 PT</div><div style="font-size:16px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(b.pt) + '</div></div>' +
       '<div style="background:#F3F4F6;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#1F1F1F">🎫 MEMBER</div><div style="font-size:16px;font-weight:800;color:#1F1F1F;margin-top:2px">฿' + fmt0(b.member) + '</div></div>' +
-      '<div style="background:#F3F4F6;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#374151">📋 PLAN</div><div style="font-size:16px;font-weight:800;color:#374151;margin-top:2px">฿' + fmt0(b.plan) + '</div></div>' +
       '<div style="background:#FEE2E2;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#991B1B">📅 วันที่บันทึก</div><div style="font-size:16px;font-weight:800;color:#991B1B;margin-top:2px">' + b.days + ' วัน</div></div>' +
       '</div>' +
       (topEmps.length
