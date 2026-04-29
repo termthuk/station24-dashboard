@@ -47,6 +47,18 @@ const STORAGE_SESSION = 'station24_session_v1';
 const STORAGE_VIEW = 'station24_last_view_v1';
 const STORAGE_POSITIONS = 'station24_positions_v1';
 const STORAGE_YEAR_OVERRIDES = 'station24_year_overrides_v1';
+const STORAGE_LAST_BACKUP = 'station24_last_backup_v1';
+const BACKUP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const BACKUP_KEYS = [
+  'station24_branches_v2',
+  'station24_daily_v1',
+  'station24_sales_log_v1',
+  'station24_chart_colors_v2',
+  'station24_branch_colors_v1',
+  'station24_users_v1',
+  'station24_positions_v1',
+  'station24_year_overrides_v1'
+];
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
 const KPI_LINES = [
@@ -142,6 +154,64 @@ function flushPush() {
 function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
 function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
+
+function buildBackupPayload() {
+  const out = { _version: 1, _exportedAt: new Date().toISOString(), data: {} };
+  BACKUP_KEYS.forEach(k => {
+    const raw = localStorage.getItem(k);
+    if (raw != null) {
+      try { out.data[k] = JSON.parse(raw); } catch(e) { out.data[k] = raw; }
+    }
+  });
+  return out;
+}
+function downloadBackupFile(silent) {
+  try {
+    const payload = buildBackupPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const stamp = d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes());
+    const name = 'station24_backup_' + stamp + '.json';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    localStorage.setItem(STORAGE_LAST_BACKUP, String(Date.now()));
+    if (!silent && typeof showToast === 'function') showToast('💾 ดาวน์โหลด backup: ' + name);
+    return true;
+  } catch (e) {
+    console.error('backup failed:', e);
+    if (typeof showToast === 'function') showToast('⚠ Backup ล้มเหลว: ' + (e.message || e));
+    return false;
+  }
+}
+function autoBackupCheck() {
+  try {
+    const last = +localStorage.getItem(STORAGE_LAST_BACKUP) || 0;
+    if (Date.now() - last < BACKUP_INTERVAL_MS) return;
+    setTimeout(() => downloadBackupFile(true), 1500);
+  } catch(e){}
+}
+function restoreBackupFromFile(file, cb) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const obj = JSON.parse(ev.target.result);
+      if (!obj || !obj.data || typeof obj.data !== 'object') throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
+      const keys = Object.keys(obj.data).filter(k => BACKUP_KEYS.indexOf(k) >= 0);
+      if (!keys.length) throw new Error('ไม่พบข้อมูลที่กู้คืนได้');
+      keys.forEach(k => { try { localStorage.setItem(k, JSON.stringify(obj.data[k])); } catch(e){} });
+      cb && cb(null, keys.length);
+    } catch (e) {
+      cb && cb(e);
+    }
+  };
+  reader.onerror = () => cb && cb(reader.error || new Error('อ่านไฟล์ไม่สำเร็จ'));
+  reader.readAsText(file);
+}
 function nowHHMM() {
   const d = nowBKK(); const p = n => String(n).padStart(2,'0');
   return p(d.getHours()) + ':' + p(d.getMinutes());
@@ -3178,6 +3248,22 @@ function renderUsersView() {
 
   let html = '';
 
+  // ---- Backup / Restore ----
+  const lastBk = +localStorage.getItem(STORAGE_LAST_BACKUP) || 0;
+  const lastBkTxt = lastBk
+    ? new Date(lastBk).toLocaleString('th-TH', { dateStyle:'medium', timeStyle:'short' })
+    : 'ยังไม่เคย backup';
+  html += '<div class="card" style="margin-bottom:18px">' +
+    '<h3><span>💾</span> สำรองข้อมูล (Backup)</h3>' +
+    '<div style="font-size:13px;color:var(--gray-text);margin-bottom:12px">' +
+    'ระบบจะดาวน์โหลดไฟล์ backup อัตโนมัติทุก 7 วัน · backup ล่าสุด: <strong>' + lastBkTxt + '</strong>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button type="button" id="exportBackupBtn" style="padding:10px 18px;border:none;border-radius:8px;background:var(--red);color:#fff;font-weight:700;cursor:pointer">⬇ Export ข้อมูลทั้งหมด</button>' +
+    '<button type="button" id="importBackupBtn" style="padding:10px 18px;border:1px solid var(--gray-line);border-radius:8px;background:#fff;color:#111;font-weight:700;cursor:pointer">⬆ Import ไฟล์ backup</button>' +
+    '<input type="file" id="importBackupInput" accept="application/json,.json" style="display:none">' +
+    '</div></div>';
+
   // ---- Branches management ----
   html += '<div class="card" style="margin-bottom:18px">' +
     '<h3><span>🏢</span> สาขา <span style="font-size:11px;color:var(--gray-text);font-weight:500;margin-left:6px">(' + BRANCHES.length + ' สาขา)</span></h3>' +
@@ -3300,6 +3386,28 @@ function renderUsersView() {
       renderUsersView(); showToast('🗑 ลบสาขา ' + br.name);
     };
   });
+
+  const exportBtn = document.getElementById('exportBackupBtn');
+  if (exportBtn) exportBtn.onclick = () => downloadBackupFile(false);
+  const importBtn = document.getElementById('importBackupBtn');
+  const importInput = document.getElementById('importBackupInput');
+  if (importBtn && importInput) {
+    importBtn.onclick = () => importInput.click();
+    importInput.onchange = () => {
+      const file = importInput.files && importInput.files[0];
+      if (!file) return;
+      if (!confirm('นำเข้าไฟล์นี้จะเขียนทับข้อมูลปัจจุบันทั้งหมด ดำเนินการต่อ?')) {
+        importInput.value = '';
+        return;
+      }
+      restoreBackupFromFile(file, (err, n) => {
+        importInput.value = '';
+        if (err) { showToast('⚠ Import ล้มเหลว: ' + (err.message || err), true); return; }
+        showToast('✓ กู้คืนสำเร็จ ' + n + ' ชุดข้อมูล · กำลังโหลดใหม่');
+        setTimeout(() => location.reload(), 800);
+      });
+    };
+  }
 
   document.getElementById('addBranchBtn').onclick = () => {
     const emoji = document.getElementById('newBranchEmoji').value.trim() || '🏢';
@@ -3437,6 +3545,7 @@ document.getElementById('loginForm')?.addEventListener('submit', ev => {
   document.getElementById('loginPassword').value = '';
   applyAuthUIBoot();
   showToast('✓ ยินดีต้อนรับ ' + (currentUser.displayName || currentUser.username));
+  autoBackupCheck();
 });
 
 document.getElementById('logoutBtn')?.addEventListener('click', () => {
@@ -3447,6 +3556,7 @@ document.getElementById('logoutBtn')?.addEventListener('click', () => {
 
 loadSession();
 applyAuthUIBoot();
+if (currentUser) autoBackupCheck();
 
 // ===== Supabase sync bootstrap =====
 function applyKeyToGlobals(key, value) {
