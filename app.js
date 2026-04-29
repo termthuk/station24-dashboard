@@ -2120,11 +2120,54 @@ function thaiDate(s) {
   return new Date(s).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Bangkok' });
 }
 
+// User-selected date ranges for year views (start as the rolling 12-month default)
+let ysRange = oneYearRangeBKK();
+let ytRange = oneYearRangeBKK();
+function dateMinusMonthsBKK(months) {
+  const d = nowBKK();
+  d.setMonth(d.getMonth() - months);
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + day;
+}
+function presetRange(id) {
+  const today = todayBKK();
+  if (id === '12m') return { from: dateMinusMonthsBKK(12), to: today };
+  if (id === '6m')  return { from: dateMinusMonthsBKK(6),  to: today };
+  if (id === '3m')  return { from: dateMinusMonthsBKK(3),  to: today };
+  if (id === '1m')  return { from: dateMinusMonthsBKK(1),  to: today };
+  if (id === 'month') { const m = today.slice(0,7); return { from: m + '-01', to: today }; }
+  if (id === 'all')   return { from: '', to: '' };
+  return null;
+}
+function yearFilterBarHTML(prefix, range) {
+  return '<div class="card" style="margin-bottom:14px;padding:12px 16px">' +
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">' +
+    '<label style="font-size:12px;font-weight:700">📅 จาก:</label>' +
+    '<input type="date" id="' + prefix + 'From" value="' + (range.from || '') + '" style="padding:7px 10px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px">' +
+    '<label style="font-size:12px;font-weight:700">ถึง:</label>' +
+    '<input type="date" id="' + prefix + 'To" value="' + (range.to || '') + '" style="padding:7px 10px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px">' +
+    '<select id="' + prefix + 'Preset" style="padding:7px 10px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px;background:#fff">' +
+    '<option value="">⚡ ช่วงด่วน</option>' +
+    '<option value="12m">ย้อนหลัง 12 เดือน</option>' +
+    '<option value="6m">ย้อนหลัง 6 เดือน</option>' +
+    '<option value="3m">ย้อนหลัง 3 เดือน</option>' +
+    '<option value="1m">ย้อนหลัง 1 เดือน</option>' +
+    '<option value="month">เดือนนี้</option>' +
+    '<option value="all">ทั้งหมด</option>' +
+    '</select>' +
+    '<button type="button" id="' + prefix + 'Reset" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700">↺ รีเซ็ต 12 เดือน</button>' +
+    '</div></div>';
+}
+
 function renderYearSalesView() {
   renderSidebar();
-  const r = oneYearRangeBKK();
+  const r = ysRange;
+  const rangeLabel = (r.from || r.to)
+    ? thaiDate(r.from || '1970-01-01') + ' — ' + thaiDate(r.to || todayBKK())
+    : 'ทั้งหมด';
   const badge = document.getElementById('ysRangeBadge');
-  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + thaiDate(r.from) + ' — ' + thaiDate(r.to) + '</strong> <span style="color:var(--gray-text);font-weight:600;margin-left:6px">(ย้อนหลัง 12 เดือน · อัปเดตอัตโนมัติทุกวัน · เฉพาะ PT+MEM)</span>';
+  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + rangeLabel + '</strong> <span style="color:var(--gray-text);font-weight:600;margin-left:6px">(เฉพาะ PT+MEM)</span>';
 
   const branchesView = filteredBranches();
   let gPT = 0, gMEM = 0, gDays = 0;
@@ -2134,7 +2177,8 @@ function renderYearSalesView() {
       const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
       let ept = 0, em = 0, ed = 0;
       for (const d in es) {
-        if (d < r.from || d > r.to) continue;
+        if (r.from && d < r.from) continue;
+        if (r.to && d > r.to) continue;
         const x = es[d];
         const a = +x.pt || 0, b = +x.member || 0;
         if (!a && !b) continue;
@@ -2148,7 +2192,7 @@ function renderYearSalesView() {
   branchTotals.forEach(b => { gPT += b.pt; gMEM += b.member; gDays += b.days; });
   const gT = gPT + gMEM;
 
-  let html =
+  let html = yearFilterBarHTML('ys', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
       '<div style="font-size:12px;font-weight:700;opacity:0.9">💰 ยอดขายสะสมทั้งหมด</div>' +
@@ -2167,32 +2211,33 @@ function renderYearSalesView() {
     '</div>' +
     '</div>';
 
-  // Per-branch cards (only employees who have any PT+MEM in the year)
-  branchTotals.forEach(b => {
-    const accent = branchColor(b.branch.id);
-    const activeEmps = b.emps.filter(e => e.total > 0);
-    html += '<div class="card" style="margin-bottom:16px;border-left:5px solid ' + accent + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px dashed var(--gray-line)">' +
-      '<h3 style="margin:0;border:none;padding:0"><span>' + b.branch.emoji + '</span> สาขา' + b.branch.name + '</h3>' +
-      '<div style="font-size:18px;font-weight:900;color:' + accent + '">฿' + fmt0(b.total) + '</div>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">' +
-      '<div style="background:#FEF2F2;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#991B1B">💪 PT</div><div style="font-size:16px;font-weight:800;color:#991B1B;margin-top:2px">฿' + fmt0(b.pt) + '</div></div>' +
-      '<div style="background:#F3F4F6;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#1F1F1F">🎫 MEMBER</div><div style="font-size:16px;font-weight:800;color:#1F1F1F;margin-top:2px">฿' + fmt0(b.member) + '</div></div>' +
-      '<div style="background:#FEE2E2;border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:700;color:#991B1B">📅 วันที่บันทึก</div><div style="font-size:16px;font-weight:800;color:#991B1B;margin-top:2px">' + b.days + ' วัน</div></div>' +
-      '</div>' +
-      (activeEmps.length
-        ? '<div style="font-size:12px;font-weight:700;color:var(--gray-text);margin-bottom:6px">🏅 พนักงานที่มียอดขาย (' + activeEmps.length + ' คน)</div>' +
-          '<div style="display:flex;flex-direction:column;gap:6px">' +
-          activeEmps.map((e, i) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;background:#FAFAFA;border-radius:8px">' +
-            '<div style="flex:1;min-width:0;font-size:13px;font-weight:600"><span style="display:inline-block;width:24px;font-weight:800;color:' + accent + '">#' + (i+1) + '</span>' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + (e.emp.position || 'Sale') + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน</span></div>' +
-            '<div style="font-size:13px;font-weight:800;color:' + accent + ';white-space:nowrap">฿' + fmt0(e.total) + '</div>' +
-            '<button type="button" class="ys-edit-btn" data-bid="' + b.branch.id + '" data-eid="' + e.emp.id + '" style="padding:5px 12px;border:1px solid ' + accent + ';background:#fff;color:' + accent + ';border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">✎ แก้ไข</button>' +
-            '</div>').join('') +
-          '</div>'
-        : '<div style="text-align:center;color:var(--gray-text);font-size:12px;padding:14px">— ยังไม่มีพนักงานที่มียอดขายในช่วงนี้ —</div>') +
-      '</div>';
-  });
+  // Combined Top 5 across all branches (employees with PT+MEM > 0)
+  const allEmps = [];
+  branchTotals.forEach(b => b.emps.forEach(e => {
+    if (e.total > 0) allEmps.push({ ...e, branch: b.branch });
+  }));
+  allEmps.sort((a, b) => b.total - a.total);
+  const top5 = allEmps.slice(0, 5);
+
+  html += '<div class="card" style="margin-bottom:16px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid var(--red)">' +
+    '<h3 style="margin:0;border:none;padding:0"><span>🏅</span> Top 5 พนักงานยอดขายสูงสุด (รวมทุกสาขา)</h3>' +
+    '<div style="font-size:12px;color:var(--gray-text);font-weight:600">จาก ' + allEmps.length + ' คนที่มียอด</div>' +
+    '</div>' +
+    (top5.length
+      ? '<div style="display:flex;flex-direction:column;gap:8px">' +
+        top5.map((e, i) => {
+          const accent = branchColor(e.branch.id);
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i+1);
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#FFFBEB' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
+            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700"><span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '20px' : '14px') + ';font-weight:800;color:' + accent + '">' + medal + '</span>' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + (e.emp.position || 'Sale') + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน</span></div>' +
+            '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">฿' + fmt0(e.total) + '</div>' +
+            '<button type="button" class="ys-edit-btn" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" style="padding:6px 14px;border:1px solid ' + accent + ';background:#fff;color:' + accent + ';border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">✎ แก้ไข</button>' +
+            '</div>';
+        }).join('') +
+        '</div>'
+      : '<div style="text-align:center;color:var(--gray-text);font-size:12px;padding:30px">— ยังไม่มีพนักงานที่มียอดขายในช่วงนี้ —</div>') +
+    '</div>';
 
   const container = document.getElementById('yearSalesContainer');
   container.innerHTML = html;
@@ -2202,13 +2247,27 @@ function renderYearSalesView() {
       openDailyModal(btn.dataset.eid);
     };
   });
+  const fromIn = document.getElementById('ysFrom');
+  const toIn   = document.getElementById('ysTo');
+  const preset = document.getElementById('ysPreset');
+  const reset  = document.getElementById('ysReset');
+  if (fromIn) fromIn.onchange = () => { ysRange = { from: fromIn.value, to: ysRange.to }; renderYearSalesView(); };
+  if (toIn)   toIn.onchange   = () => { ysRange = { from: ysRange.from, to: toIn.value }; renderYearSalesView(); };
+  if (preset) preset.onchange = () => {
+    const p = presetRange(preset.value);
+    if (p) { ysRange = p; renderYearSalesView(); }
+  };
+  if (reset)  reset.onclick   = () => { ysRange = oneYearRangeBKK(); renderYearSalesView(); };
 }
 
 function renderYearTrainView() {
   renderSidebar();
-  const r = oneYearRangeBKK();
+  const r = ytRange;
+  const rangeLabel = (r.from || r.to)
+    ? thaiDate(r.from || '1970-01-01') + ' — ' + thaiDate(r.to || todayBKK())
+    : 'ทั้งหมด';
   const badge = document.getElementById('ytRangeBadge');
-  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + thaiDate(r.from) + ' — ' + thaiDate(r.to) + '</strong> <span style="color:var(--gray-text);font-weight:600;margin-left:6px">(ย้อนหลัง 12 เดือน · อัปเดตอัตโนมัติทุกวัน)</span>';
+  if (badge) badge.innerHTML = '🗓 ช่วง: <strong style="margin-left:4px">' + rangeLabel + '</strong>';
 
   const branchesView = filteredBranches();
   let gTrain = 0, gTrainers = 0;
@@ -2218,7 +2277,8 @@ function renderYearTrainView() {
       const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
       let cnt = 0, days = 0;
       for (const d in es) {
-        if (d < r.from || d > r.to) continue;
+        if (r.from && d < r.from) continue;
+        if (r.to && d > r.to) continue;
         const t = +es[d].train || 0;
         if (t > 0) { cnt += t; days++; }
       }
@@ -2235,7 +2295,7 @@ function renderYearTrainView() {
   const top = allRows.find(x => x.train > 0);
   const topLabel = top ? top.emp.name + ' (' + top.branch.emoji + ' ' + top.branch.name + ')' : '—';
 
-  let html =
+  let html = yearFilterBarHTML('yt', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#F59E0B,#92400E);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(245,158,11,0.25)">' +
       '<div style="font-size:12px;font-weight:700;opacity:0.9">🏋 จำนวนเทรนรวมทั้งหมด</div>' +
@@ -2259,29 +2319,30 @@ function renderYearTrainView() {
     '</div>' +
     '</div>';
 
-  // Per-branch cards (only trainers who have any train count in the year)
+  // Combined Top 5 trainers across all branches (train > 0)
   const today = todayBKK();
-  branchData.forEach(b => {
-    const accent = branchColor(b.branch.id);
-    const activeRows = b.rows.filter(r => r.train > 0);
-    html += '<div class="card" style="margin-bottom:16px;border-left:5px solid ' + accent + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px dashed var(--gray-line)">' +
-      '<h3 style="margin:0;border:none;padding:0"><span>' + b.branch.emoji + '</span> สาขา' + b.branch.name + '</h3>' +
-      '<div style="font-size:18px;font-weight:900;color:' + accent + '">🏋 ' + fmtInt(b.train) + ' ครั้ง</div>' +
-      '</div>' +
-      '<div style="font-size:12px;color:var(--gray-text);margin-bottom:8px">' + b.trainers + ' เทรนเนอร์ · เฉลี่ย ' + (b.trainers ? Math.round(b.train / b.trainers) : 0) + ' ครั้ง/คน</div>' +
-      (activeRows.length
-        ? '<div style="display:flex;flex-direction:column;gap:6px">' +
-          activeRows.map((e, i) => '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;background:#FAFAFA;border-radius:8px">' +
-            '<div style="flex:1;min-width:0;font-size:13px;font-weight:600"><span style="display:inline-block;width:24px;font-weight:800;color:' + accent + '">#' + (i+1) + '</span>' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.days + ' วันที่บันทึก</span></div>' +
-            '<div style="font-size:13px;font-weight:800;color:' + accent + ';white-space:nowrap">' + fmtInt(e.train) + ' ครั้ง</div>' +
-            '<input type="number" class="yt-train-input" data-bid="' + b.branch.id + '" data-eid="' + e.emp.id + '" min="0" step="1" placeholder="+เทรน" style="width:72px;padding:4px 6px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:11px;text-align:right">' +
-            '<button type="button" class="yt-add-btn" data-bid="' + b.branch.id + '" data-eid="' + e.emp.id + '" style="padding:5px 12px;border:1px solid ' + accent + ';background:' + accent + ';color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">+ บันทึก</button>' +
-            '</div>').join('') +
-          '</div>'
-        : '<div style="text-align:center;color:var(--gray-text);font-size:12px;padding:14px">— ยังไม่มีเทรนเนอร์ที่มียอดในช่วงนี้ —</div>') +
-      '</div>';
-  });
+  const top5 = allRows.filter(r => r.train > 0).slice(0, 5);
+
+  html += '<div class="card" style="margin-bottom:16px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid #F59E0B">' +
+    '<h3 style="margin:0;border:none;padding:0"><span>🏅</span> Top 5 เทรนเนอร์ยอดเทรนสูงสุด (รวมทุกสาขา)</h3>' +
+    '<div style="font-size:12px;color:var(--gray-text);font-weight:600">จาก ' + allRows.filter(r => r.train > 0).length + ' คนที่มียอด</div>' +
+    '</div>' +
+    (top5.length
+      ? '<div style="display:flex;flex-direction:column;gap:8px">' +
+        top5.map((e, i) => {
+          const accent = branchColor(e.branch.id);
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i+1);
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#FFFBEB' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
+            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700"><span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '20px' : '14px') + ';font-weight:800;color:' + accent + '">' + medal + '</span>' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.days + ' วันที่บันทึก</span></div>' +
+            '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">🏋 ' + fmtInt(e.train) + ' ครั้ง</div>' +
+            '<input type="number" class="yt-train-input" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" min="0" step="1" placeholder="+เทรน" style="width:80px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px;text-align:right">' +
+            '<button type="button" class="yt-add-btn" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" style="padding:6px 14px;border:1px solid ' + accent + ';background:' + accent + ';color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">+ บันทึก</button>' +
+            '</div>';
+        }).join('') +
+        '</div>'
+      : '<div style="text-align:center;color:var(--gray-text);font-size:12px;padding:30px">— ยังไม่มีเทรนเนอร์ที่มียอดในช่วงนี้ —</div>') +
+    '</div>';
 
   const container = document.getElementById('yearTrainContainer');
   container.innerHTML = html;
@@ -2307,6 +2368,17 @@ function renderYearTrainView() {
       renderYearTrainView();
     };
   });
+  const fromIn = document.getElementById('ytFrom');
+  const toIn   = document.getElementById('ytTo');
+  const preset = document.getElementById('ytPreset');
+  const reset  = document.getElementById('ytReset');
+  if (fromIn) fromIn.onchange = () => { ytRange = { from: fromIn.value, to: ytRange.to }; renderYearTrainView(); };
+  if (toIn)   toIn.onchange   = () => { ytRange = { from: ytRange.from, to: toIn.value }; renderYearTrainView(); };
+  if (preset) preset.onchange = () => {
+    const p = presetRange(preset.value);
+    if (p) { ytRange = p; renderYearTrainView(); }
+  };
+  if (reset)  reset.onclick   = () => { ytRange = oneYearRangeBKK(); renderYearTrainView(); };
 }
 
 // ===== Record Sales view (all employees with inline forms) =====
