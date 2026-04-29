@@ -48,8 +48,8 @@ const STORAGE_POSITIONS = 'station24_positions_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
 const KPI_LINES = [
-  { value: 85000,  color: '#DC2626', label: 'KPI Min' },
-  { value: 150000, color: '#16A34A', label: 'KPI MAX' },
+  { value: 85000,  color: '#DC2626', label: '' },
+  { value: 150000, color: '#16A34A', label: '' },
 ];
 const KPI_THRESHOLD_MAX = Math.max.apply(null, KPI_LINES.map(k => k.value));
 // Per-bar color based on KPI tier achievement
@@ -1849,7 +1849,7 @@ function renderSummaryChartView() {
         ctx.lineTo(chartArea.right, y);
         ctx.stroke();
         ctx.setLineDash([]);
-        const label = '🎯 ' + line.label + ' ฿' + fmtShort(line.value);
+        const label = '฿' + fmtShort(line.value);
         ctx.font = 'bold 11px "Segoe UI","Noto Sans Thai",Arial,sans-serif';
         const tw = ctx.measureText(label).width;
         const pad = 6;
@@ -1989,10 +1989,10 @@ function renderSummaryChartView() {
         plugins: {
           legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 },
             generateLabels: () => [
-              { text: 'PT/MEM ยังไม่ถึง 85K',     fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
-              { text: 'PT/MEM ถึง 85K (KPI Min)', fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
-              { text: 'PT/MEM ถึง 150K (KPI MAX)',fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false },
-              { text: '📋 PLAN',                  fillStyle: CHART_COLORS.plan,      strokeStyle: CHART_COLORS.plan,      lineWidth: 0, hidden: false }
+              { text: 'PT/MEM ยังไม่ถึง 85K',  fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
+              { text: 'PT/MEM ถึง 85K',        fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
+              { text: 'PT/MEM ถึง 150K',       fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false },
+              { text: '📋 PLAN',                fillStyle: CHART_COLORS.plan,      strokeStyle: CHART_COLORS.plan,      lineWidth: 0, hidden: false }
             ]
           }, onClick: () => {} },
           tooltip: { callbacks: {
