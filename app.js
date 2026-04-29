@@ -49,6 +49,13 @@ const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C
 const DAILY_QUOTA = 5000;
 const KPI_THRESHOLD = 50000;
 
+// 3-branch comparison chart: branch → "team" mapping (A/B/C)
+const THREE_BRANCH_TEAMS = [
+  { id: 'srinakarin', team: 'A', emoji: '🅰', label: 'ทีม A · ศรีนครินทร์', cardBg: '#FEF3C7', cardBorder: '#F59E0B', color: '#92400E', zoneRgba: 'rgba(245,158,11,0.08)' },
+  { id: 'sriracha',   team: 'B', emoji: '🅱', label: 'ทีม B · ศรีราชา',     cardBg: '#DBEAFE', cardBorder: '#2563EB', color: '#1E40AF', zoneRgba: 'rgba(37,99,235,0.08)'  },
+  { id: 'srisaman',   team: 'C', emoji: '🅲', label: 'ทีม C · ศรีสมาน',     cardBg: '#D1FAE5', cardBorder: '#16A34A', color: '#065F46', zoneRgba: 'rgba(22,163,74,0.08)'  },
+];
+
 const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
 const CHART_COLOR_PRESETS = [
   { id: 'default', name: 'แดง-ดำ-ส้ม (Station 24)', pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' },
@@ -1728,6 +1735,43 @@ function renderSummaryChartView() {
     '<button type="button" class="sc-save-all" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 ดาวน์โหลดทั้งหมด (.jpg)</button>' +
     '</div></div></div>';
 
+  // ===== 3-branch comparison: each branch as team A/B/C, no KPI line =====
+  const visibleIds = filteredBranches().map(b => b.id);
+  const threeGroups = THREE_BRANCH_TEAMS.map(t => {
+    if (visibleIds.indexOf(t.id) < 0) return null;
+    const br = getBranch(t.id);
+    if (!br) return null;
+    const rows = br.employees
+      .map(e => { const d = empDailyTotals(br.id, e.id); return { emp: e, branch: br, team: t.team, ...d, total: d.pt + d.member }; })
+      .sort((a, b) => b.total - a.total);
+    return { team: t, branch: br, rows: rows };
+  }).filter(Boolean);
+  const has3 = threeGroups.length === THREE_BRANCH_TEAMS.length;
+
+  if (has3) {
+    const total3Count = threeGroups.reduce((s, g) => s + g.rows.length, 0);
+    const chartH3 = Math.max(380, total3Count * 32 + 120);
+    const sumBoxes = threeGroups.map(g => {
+      const tot = g.rows.reduce((s, r) => s + r.total, 0);
+      return '<div style="flex:1;min-width:180px;padding:10px 14px;background:' + g.team.cardBg + ';border-left:4px solid ' + g.team.cardBorder + ';border-radius:8px">' +
+        '<div style="font-size:11px;font-weight:700;color:' + g.team.color + '">' + g.team.emoji + ' ' + g.team.label + ' · ' + g.rows.length + ' คน</div>' +
+        '<div style="font-size:18px;font-weight:800;color:' + g.team.color + ';margin-top:2px">฿' + fmt0(tot) + '</div></div>';
+    }).join('');
+    html += '<div class="card" style="margin-bottom:20px" data-sc-card="three">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:2px solid var(--red);margin-bottom:12px">' +
+      '<h3 style="margin:0;border:none;padding:0"><span>🏢</span> เปรียบเทียบ 3 สาขา (แบ่งทีม A/B/C)</h3>' +
+      '<div style="display:flex;gap:6px">' +
+      '<button type="button" class="sc-save-three" data-fmt="png" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">🖼 .PNG</button>' +
+      '<button type="button" class="sc-save-three" data-fmt="jpg" style="padding:6px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--red-dark)">📷 .JPG</button>' +
+      '</div></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' + sumBoxes + '</div>' +
+      (total3Count === 0
+        ? '<div style="text-align:center;padding:40px;color:var(--gray-text);font-size:12px">— ไม่มีพนักงาน —</div>'
+        : '<div class="chart-wrap" style="height:' + chartH3 + 'px"><canvas id="scThreeBranch"></canvas></div>'
+      ) +
+      '</div>';
+  }
+
   filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
@@ -1861,6 +1905,96 @@ function renderSummaryChartView() {
     }
   };
 
+  // Multi-zone background plugin (used by 3-branch combined chart)
+  const branchZonePlugin = {
+    id: 'branchZones',
+    beforeDraw(chart, _args, opts) {
+      const zones = opts && opts.zones;
+      if (!zones || !zones.length) return;
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const xScale = scales.x;
+      if (!xScale) return;
+      const total = zones.reduce((s, z) => s + z.count, 0);
+      if (!total) return;
+      let cursor = 0;
+      ctx.save();
+      zones.forEach((z, i) => {
+        if (z.count === 0) return;
+        const startIdx = cursor;
+        const endIdx = cursor + z.count;
+        const left = startIdx === 0 ? chartArea.left
+          : (xScale.getPixelForValue(startIdx - 1) + xScale.getPixelForValue(startIdx)) / 2;
+        const right = endIdx >= total ? chartArea.right
+          : (xScale.getPixelForValue(endIdx - 1) + xScale.getPixelForValue(endIdx)) / 2;
+        ctx.fillStyle = z.bg;
+        ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+        if (i > 0 && startIdx > 0) {
+          ctx.strokeStyle = 'rgba(31,31,31,0.4)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(left, chartArea.top);
+          ctx.lineTo(left, chartArea.bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        ctx.fillStyle = z.color;
+        ctx.font = 'bold 12px "Segoe UI","Noto Sans Thai",Arial,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(z.title, (left + right) / 2, chartArea.top + 2);
+        cursor = endIdx;
+      });
+      ctx.restore();
+    }
+  };
+
+  if (has3) {
+    const allRows = threeGroups.flatMap(g => g.rows);
+    if (allRows.length) {
+      const ctx3 = document.getElementById('scThreeBranch');
+      if (ctx3) {
+        const labels = allRows.map(x => x.emp.name);
+        const zones = threeGroups.map(g => ({ count: g.rows.length, bg: g.team.zoneRgba, color: g.team.color, title: g.team.emoji + ' ' + g.team.label }));
+        scBranchCharts['three_combined'] = new Chart(ctx3, {
+          type: 'bar',
+          data: { labels: labels, datasets: [
+            { label: '💪 PT', data: allRows.map(x => x.pt), backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
+            { label: '🎫 MEMBER', data: allRows.map(x => x.member), backgroundColor: CHART_COLORS.member, borderRadius: 4 },
+            { label: '📋 PLAN', data: allRows.map(x => x.plan), backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
+          ]},
+          options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+            layout: { padding: { top: 30 } },
+            plugins: {
+              legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 } } },
+              tooltip: { callbacks: {
+                title: items => {
+                  if (!items.length) return '';
+                  const i = items[0].dataIndex;
+                  return allRows[i].emp.name + ' · ' + allRows[i].branch.emoji + ' ' + allRows[i].branch.name;
+                },
+                label: c => c.dataset.label + ': ฿' + fmt0(c.raw)
+              } },
+              datalabels: {
+                display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+                anchor: 'end', align: 'end', offset: 2,
+                color: '#1F1F1F', font: { size: 9, weight: 700 },
+                formatter: v => '฿' + fmtShort(v)
+              },
+              branchZones: { zones: zones }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#1F1F1F', font: { weight: 600, size: 10 } } },
+              y: { beginAtZero: true, ticks: { callback: v => '฿' + fmtInt(v), font: { size: 10 } }, grid: { color: '#F3F4F6' } }
+            }
+          },
+          plugins: [branchZonePlugin]
+        });
+      }
+    }
+  }
+
   filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
@@ -1914,6 +2048,9 @@ function renderSummaryChartView() {
 
   container.querySelectorAll('.sc-save-btn').forEach(btn => {
     btn.onclick = () => saveBranchChart(btn.dataset.bid, btn.dataset.fmt);
+  });
+  container.querySelectorAll('.sc-save-three').forEach(btn => {
+    btn.onclick = () => saveThreeBranchChart(btn.dataset.fmt);
   });
   container.querySelectorAll('.sc-save-all').forEach(btn => {
     btn.onclick = () => {
@@ -2170,6 +2307,71 @@ function saveBranchChart(branchId, fmt, silent) {
   a.download = 'Station24_Chart_' + br.name + '_' + todayBKK() + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   if (!silent) showToast('✓ ดาวน์โหลด ' + br.name + '.' + ext);
+  return true;
+}
+
+// ===== saveThreeBranchChart (combined 3-branch comparison) =====
+function saveThreeBranchChart(fmt) {
+  const chart = scBranchCharts['three_combined'];
+  const src = chart && chart.canvas && chart.canvas.width ? chart.canvas : null;
+  if (!src) { showToast('⚠ ไม่มีกราฟ', true); return false; }
+
+  const totals = THREE_BRANCH_TEAMS.map(t => {
+    const br = getBranch(t.id);
+    let sum = 0;
+    if (br) br.employees.forEach(e => { const d = empDailyTotals(t.id, e.id); sum += d.pt + d.member; });
+    return { team: t, sum: sum };
+  });
+
+  const headerH = 130;
+  const footerH = 40;
+  const pad = 20;
+  const W = Math.max(src.width, 900);
+  const H = src.height + headerH + footerH;
+
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#DC2626'; ctx.fillRect(0, 0, W, 6);
+
+  ctx.fillStyle = '#0F0F0F';
+  ctx.font = 'bold 22px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.fillText('STATION 24 FITNESS — เปรียบเทียบ 3 สาขา', pad, 20);
+
+  ctx.fillStyle = '#DC2626';
+  ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  ctx.fillText('🏢 ทีม A · ศรีนครินทร์ · ทีม B · ศรีราชา · ทีม C · ศรีสมาน', pad, 52);
+
+  ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  let xOff = pad;
+  totals.forEach(t => {
+    ctx.fillStyle = t.team.color;
+    const txt = t.team.emoji + ' ' + t.team.label + ': ฿' + fmt0(t.sum);
+    ctx.fillText(txt, xOff, 82);
+    xOff += ctx.measureText(txt).width + 24;
+  });
+
+  const cx = Math.round((W - src.width) / 2);
+  ctx.drawImage(src, cx, headerH);
+
+  ctx.fillStyle = '#9CA3AF';
+  ctx.font = '11px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
+  const dateStr = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric', timeZone:'Asia/Bangkok'});
+  ctx.fillText('© Station 24 Fitness · บันทึก ' + dateStr, pad, H - footerH + 12);
+  ctx.textAlign = 'right';
+  ctx.fillText('station24-dashboard', W - pad, H - footerH + 12);
+  ctx.textAlign = 'left';
+
+  const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const ext = fmt === 'jpg' ? 'jpg' : 'png';
+  const dataURL = out.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = 'Station24_Chart_3สาขา_' + todayBKK() + '.' + ext;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('✓ ดาวน์โหลด 3สาขา.' + ext);
   return true;
 }
 
