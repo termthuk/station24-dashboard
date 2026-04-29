@@ -1982,16 +1982,17 @@ function renderSummaryChartView() {
       data: { labels: labels, datasets: [
         { label: '💪 PT', data: ptData, backgroundColor: ptData.map(kpiBarColor), borderRadius: 4 },
         { label: '🎫 MEMBER', data: memData, backgroundColor: memData.map(kpiBarColor), borderRadius: 4 },
-        { label: '📋 PLAN', data: planData, backgroundColor: planData.map(kpiBarColor), borderRadius: 4 }
+        { label: '📋 PLAN', data: planData, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
       ]},
       options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
         layout: { padding: { top: 30 } },
         plugins: {
           legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 },
             generateLabels: () => [
-              { text: 'ยังไม่ถึง 85K',         fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
-              { text: 'ถึง 85K (KPI Min)',     fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
-              { text: 'ถึง 150K (KPI MAX)',    fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false }
+              { text: 'PT/MEM ยังไม่ถึง 85K',     fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
+              { text: 'PT/MEM ถึง 85K (KPI Min)', fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
+              { text: 'PT/MEM ถึง 150K (KPI MAX)',fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false },
+              { text: '📋 PLAN',                  fillStyle: CHART_COLORS.plan,      strokeStyle: CHART_COLORS.plan,      lineWidth: 0, hidden: false }
             ]
           }, onClick: () => {} },
           tooltip: { callbacks: {
@@ -2040,7 +2041,12 @@ function renderSummaryChartView() {
       const ch = scBranchCharts[k];
       if (!ch || !ch.data || !ch.data.datasets) return;
       if (k === 'three_combined') return;
-      if (k.startsWith('c_')) return; // per-branch charts now use KPI tier colors, not CHART_COLORS
+      if (k.startsWith('c_')) {
+        // PT and MEMBER use KPI tier colors (skip), PLAN still follows CHART_COLORS
+        if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
+        ch.update('none');
+        return;
+      }
       if (k.startsWith('t_')) {
         const ds = ch.data.datasets[0];
         if (ds && Array.isArray(ds.data)) {
