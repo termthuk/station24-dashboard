@@ -434,12 +434,10 @@ function renderMenuNav() {
   if (isAdmin()) {
     html += '<button class="menu-item ' + (currentView==='users'?'active':'') + '" data-view="users"><span class="menu-item-icon">👥</span><span>จัดการผู้ใช้/สาขา</span></button>';
   }
-  // Cumulative / ranking group — bottom of menu
+  // Cumulative group — bottom of menu
   html +=
     '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายสะสม 1 ปี</span></button>' +
-    '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
-    '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>';
+    '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>';
   nav.innerHTML = html;
   nav.querySelectorAll('.menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
 }
@@ -3264,7 +3262,7 @@ function applyAuthUIBoot() {
       // Restore the last view the user was on (saved by setView)
       let last = null;
       try { last = JSON.parse(localStorage.getItem(STORAGE_VIEW) || 'null'); } catch(e){}
-      const validViews = ['branch','overview','recordsales','summarychart','yearsales','yeartrain','history','ranking','rankingtrainer','users'];
+      const validViews = ['branch','overview','recordsales','summarychart','yearsales','yeartrain','history','users'];
       const v = last && validViews.indexOf(last.view) >= 0 ? last.view : 'overview';
       if (last && last.branchId && BRANCHES.some(b => b.id === last.branchId)) activeBranch = last.branchId;
       setView(v);
