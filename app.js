@@ -2566,7 +2566,11 @@ function renderYearTrainView() {
   const top = allRows.find(x => x.train > 0);
   const topLabel = top ? top.emp.name + ' (' + top.branch.emoji + ' ' + top.branch.name + ')' : '—';
 
-  let html = viewExportBarHTML('yearTrainContainer', 'Station24_ยอดเทรนสะสม') +
+  let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<button type="button" id="ytRefresh" style="padding:7px 14px;border:1px solid #16A34A;background:#fff;color:#16A34A;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🔄 ดึงข้อมูลจากพนักงานใหม่</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearTrainContainer" data-name="Station24_ยอดเทรนสะสม" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearTrainContainer" data-name="Station24_ยอดเทรนสะสม" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '</div>' +
     yearFilterBarHTML('yt', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
@@ -2634,6 +2638,23 @@ function renderYearTrainView() {
   container.querySelectorAll('.yt-edit-yo').forEach(btn => {
     btn.onclick = () => openYearOverrideModal(btn.dataset.eid, btn.dataset.bid);
   });
+  const ytRefreshBtn = document.getElementById('ytRefresh');
+  if (ytRefreshBtn) ytRefreshBtn.onclick = () => {
+    if (!confirm('ดึงข้อมูลจากพนักงานใหม่?\nการแก้ไขชื่อ/สาขา/ตำแหน่ง/จำนวนเทรน ในหน้านี้จะถูกล้างทั้งหมด')) return;
+    let cleared = 0;
+    Object.keys(YEAR_OVERRIDES).forEach(eid => {
+      const o = YEAR_OVERRIDES[eid];
+      delete o.train;
+      delete o.name;
+      delete o.branchId;
+      delete o.position;
+      cleared++;
+      if (Object.keys(o).length === 0) delete YEAR_OVERRIDES[eid];
+    });
+    saveYearOverrides();
+    showToast(cleared ? '✓ ดึงข้อมูลใหม่แล้ว · ล้าง ' + cleared + ' รายการ' : '✓ ไม่มีรายการที่แก้ไขเอง');
+    renderYearTrainView();
+  };
   const fromIn = document.getElementById('ytFrom');
   const toIn   = document.getElementById('ytTo');
   const preset = document.getElementById('ytPreset');
