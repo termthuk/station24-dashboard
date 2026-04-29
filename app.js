@@ -1036,11 +1036,13 @@ function renderRankingView() {
   combinedHtml += '</div></div>';
 
   container.innerHTML =
+    viewExportBarHTML('rankingContainer', 'Station24_จัดอันดับยอดขาย') +
     '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
     '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (พนักงานทุกคน)</div>' +
     branchHtml;
 
+  bindViewExportButtons(container);
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
   });
@@ -1212,11 +1214,13 @@ function renderRankingTrainerView() {
   combinedHtml += '</div></div>';
 
   container.innerHTML =
+    viewExportBarHTML('rankingTrainerContainer', 'Station24_จัดอันดับเทรนเนอร์') +
     '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
     '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (เทรนเนอร์ทุกคน)</div>' +
     branchHtml;
 
+  bindViewExportButtons(container);
 }
 
 function openDailyModal(empId) {
@@ -2176,6 +2180,45 @@ function thaiDate(s) {
 // User-selected date ranges for year views (start as the rolling 12-month default)
 let ysRange = oneYearRangeBKK();
 let ytRange = oneYearRangeBKK();
+
+// ===== Generic "save view as image" (uses html2canvas) =====
+async function saveElementAsImage(el, baseName, fmt) {
+  if (!el) { showToast('⚠ ไม่พบเนื้อหาที่จะบันทึก', true); return; }
+  if (typeof html2canvas === 'undefined') { showToast('⚠ โหลด html2canvas ไม่สำเร็จ', true); return; }
+  try {
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: node => node.classList && node.classList.contains('no-capture')
+    });
+    const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+    const ext = fmt === 'jpg' ? 'jpg' : 'png';
+    const dataURL = canvas.toDataURL(mime, fmt === 'jpg' ? 0.92 : 1.0);
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = baseName + '_' + todayBKK() + '.' + ext;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    showToast('✓ ดาวน์โหลด ' + baseName + '.' + ext);
+  } catch(e) {
+    console.error('saveElementAsImage failed', e);
+    showToast('⚠ บันทึกภาพไม่สำเร็จ', true);
+  }
+}
+function viewExportBarHTML(targetId, baseName) {
+  return '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">' +
+    '<button type="button" class="view-save-btn" data-tgt="' + targetId + '" data-name="' + baseName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="' + targetId + '" data-name="' + baseName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '</div>';
+}
+function bindViewExportButtons(scope) {
+  scope.querySelectorAll('.view-save-btn').forEach(btn => {
+    btn.onclick = () => {
+      const el = document.getElementById(btn.dataset.tgt);
+      saveElementAsImage(el, btn.dataset.name, btn.dataset.fmt);
+    };
+  });
+}
 function dateMinusMonthsBKK(months) {
   const d = nowBKK();
   d.setMonth(d.getMonth() - months);
@@ -2246,7 +2289,8 @@ function renderYearSalesView() {
   const gT = gPT + gMEM;
 
   const empCount = branchTotals.reduce((s, b) => s + b.emps.filter(e => e.total > 0).length, 0);
-  let html = yearFilterBarHTML('ys', r) +
+  let html = viewExportBarHTML('yearSalesContainer', 'Station24_ยอดขายสะสม') +
+    yearFilterBarHTML('ys', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
       '<div style="font-size:12px;font-weight:700;opacity:0.9">💰 ยอดขายสะสมทั้งหมด</div>' +
@@ -2305,6 +2349,7 @@ function renderYearSalesView() {
 
   const container = document.getElementById('yearSalesContainer');
   container.innerHTML = html;
+  bindViewExportButtons(container);
   container.querySelectorAll('.ys-edit-btn').forEach(btn => {
     btn.onclick = () => {
       activeBranch = btn.dataset.bid;
@@ -2359,7 +2404,8 @@ function renderYearTrainView() {
   const top = allRows.find(x => x.train > 0);
   const topLabel = top ? top.emp.name + ' (' + top.branch.emoji + ' ' + top.branch.name + ')' : '—';
 
-  let html = yearFilterBarHTML('yt', r) +
+  let html = viewExportBarHTML('yearTrainContainer', 'Station24_ยอดเทรนสะสม') +
+    yearFilterBarHTML('yt', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
       '<div style="font-size:12px;font-weight:700;opacity:0.9">🏋 จำนวนเทรนรวมทั้งหมด</div>' +
@@ -2415,6 +2461,7 @@ function renderYearTrainView() {
 
   const container = document.getElementById('yearTrainContainer');
   container.innerHTML = html;
+  bindViewExportButtons(container);
   container.querySelectorAll('.yt-add-btn').forEach(btn => {
     btn.onclick = () => {
       const bid = btn.dataset.bid, eid = btn.dataset.eid;
