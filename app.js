@@ -946,11 +946,12 @@ function renderIndividualView() {
 function renderRankingView() {
   renderSidebar();
   const container = document.getElementById('rankingContainer');
+  const r = rkRange;
 
   // Per-branch sections (all employees)
   const branchHtml = filteredBranches().map(br => {
     const emps = br.employees.map(e => {
-      const t = empDailyTotals(br.id, e.id);
+      const t = empTotalsInRange(br.id, e.id, r);
       return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member };
     }).sort((a, b) => b.total - a.total);
     const branchTotal = emps.reduce((s, r) => s + r.total, 0);
@@ -993,7 +994,7 @@ function renderRankingView() {
   // Combined ranking across all filtered branches (Top 5)
   const all = [];
   filteredBranches().forEach(br => br.employees.forEach(e => {
-    const t = empDailyTotals(br.id, e.id);
+    const t = empTotalsInRange(br.id, e.id, r);
     all.push({ branch: br, emp: e, pt: t.pt, member: t.member, days: t.days, total: t.pt + t.member });
   }));
   all.sort((a, b) => b.total - a.total);
@@ -1037,6 +1038,7 @@ function renderRankingView() {
 
   container.innerHTML =
     viewExportBarHTML('rankingContainer', 'Station24_จัดอันดับยอดขาย') +
+    yearFilterBarHTML('rk', r, '↺ ทั้งหมด') +
     '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
     '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (พนักงานทุกคน)</div>' +
@@ -1046,6 +1048,17 @@ function renderRankingView() {
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
   });
+  const rkFromIn = document.getElementById('rkFrom');
+  const rkToIn   = document.getElementById('rkTo');
+  const rkPreset = document.getElementById('rkPreset');
+  const rkReset  = document.getElementById('rkReset');
+  if (rkFromIn) rkFromIn.onchange = () => { rkRange = { from: rkFromIn.value, to: rkRange.to }; renderRankingView(); };
+  if (rkToIn)   rkToIn.onchange   = () => { rkRange = { from: rkRange.from, to: rkToIn.value }; renderRankingView(); };
+  if (rkPreset) rkPreset.onchange = () => {
+    const p = presetRange(rkPreset.value);
+    if (p) { rkRange = p; renderRankingView(); }
+  };
+  if (rkReset)  rkReset.onclick   = () => { rkRange = { from: '', to: '' }; renderRankingView(); };
 }
 
 function renderRankingAllView() {
@@ -1120,12 +1133,13 @@ function renderRankingTrainerView() {
   renderSidebar();
   const container = document.getElementById('rankingTrainerContainer');
   if (!container) return;
+  const r = rktRange;
 
   // Per-branch sections
   const branchHtml = filteredBranches().map(br => {
     const trainers = br.employees
       .filter(e => isPosPT(e.position))
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
+      .map(e => { const t = empTotalsInRange(br.id, e.id, r); return { emp: e, train: t.train, days: t.days }; })
       .sort((a, b) => b.train - a.train);
     const branchTrainTotal = trainers.reduce((s, r) => s + r.train, 0);
     const maxTrain = Math.max(...trainers.map(r => r.train), 1);
@@ -1167,7 +1181,7 @@ function renderRankingTrainerView() {
   const all = [];
   filteredBranches().forEach(br => br.employees.forEach(e => {
     if (!isPosPT(e.position)) return;
-    const t = empDailyTotals(br.id, e.id);
+    const t = empTotalsInRange(br.id, e.id, r);
     all.push({ branch: br, emp: e, train: t.train, days: t.days });
   }));
   all.sort((a, b) => b.train - a.train);
@@ -1215,12 +1229,24 @@ function renderRankingTrainerView() {
 
   container.innerHTML =
     viewExportBarHTML('rankingTrainerContainer', 'Station24_จัดอันดับเทรนเนอร์') +
+    yearFilterBarHTML('rkt', r, '↺ ทั้งหมด') +
     '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
     '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (เทรนเนอร์ทุกคน)</div>' +
     branchHtml;
 
   bindViewExportButtons(container);
+  const rktFromIn = document.getElementById('rktFrom');
+  const rktToIn   = document.getElementById('rktTo');
+  const rktPreset = document.getElementById('rktPreset');
+  const rktReset  = document.getElementById('rktReset');
+  if (rktFromIn) rktFromIn.onchange = () => { rktRange = { from: rktFromIn.value, to: rktRange.to }; renderRankingTrainerView(); };
+  if (rktToIn)   rktToIn.onchange   = () => { rktRange = { from: rktRange.from, to: rktToIn.value }; renderRankingTrainerView(); };
+  if (rktPreset) rktPreset.onchange = () => {
+    const p = presetRange(rktPreset.value);
+    if (p) { rktRange = p; renderRankingTrainerView(); }
+  };
+  if (rktReset)  rktReset.onclick   = () => { rktRange = { from: '', to: '' }; renderRankingTrainerView(); };
 }
 
 function openDailyModal(empId) {
@@ -2190,6 +2216,24 @@ function thaiDate(s) {
 // User-selected date ranges for year views (start as the rolling 12-month default)
 let ysRange = oneYearRangeBKK();
 let ytRange = oneYearRangeBKK();
+// Ranking views — default to all-time so existing behaviour is preserved
+let rkRange  = { from: '', to: '' };
+let rktRange = { from: '', to: '' };
+function empTotalsInRange(bid, eid, range) {
+  const entries = (DAILY[bid] && DAILY[bid][eid]) || {};
+  let pt = 0, member = 0, plan = 0, train = 0, days = 0;
+  for (const d in entries) {
+    if (range && range.from && d < range.from) continue;
+    if (range && range.to && d > range.to) continue;
+    const e = entries[d] || {};
+    pt += +e.pt || 0;
+    member += +e.member || 0;
+    plan += +e.plan || 0;
+    train += +e.train || 0;
+    days++;
+  }
+  return { pt: pt, member: member, plan: plan, train: train, days: days, total: pt + member + plan };
+}
 
 // ===== Generic "save view as image" (uses html2canvas) =====
 async function saveElementAsImage(el, baseName, fmt) {
@@ -2246,8 +2290,9 @@ function presetRange(id) {
   if (id === 'all')   return { from: '', to: '' };
   return null;
 }
-function yearFilterBarHTML(prefix, range) {
-  return '<div class="card" style="margin-bottom:14px;padding:12px 16px">' +
+function yearFilterBarHTML(prefix, range, resetLabel) {
+  const rl = resetLabel || '↺ รีเซ็ต 12 เดือน';
+  return '<div class="card no-capture" style="margin-bottom:14px;padding:12px 16px">' +
     '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">' +
     '<label style="font-size:12px;font-weight:700">📅 จาก:</label>' +
     '<input type="date" id="' + prefix + 'From" value="' + (range.from || '') + '" style="padding:7px 10px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px">' +
@@ -2262,7 +2307,7 @@ function yearFilterBarHTML(prefix, range) {
     '<option value="month">เดือนนี้</option>' +
     '<option value="all">ทั้งหมด</option>' +
     '</select>' +
-    '<button type="button" id="' + prefix + 'Reset" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700">↺ รีเซ็ต 12 เดือน</button>' +
+    '<button type="button" id="' + prefix + 'Reset" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700">' + rl + '</button>' +
     '</div></div>';
 }
 
