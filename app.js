@@ -439,8 +439,7 @@ function renderMenuNav() {
     '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายสะสม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='ranking'?'active':'') + '" data-view="ranking"><span class="menu-item-icon">🏆</span><span>จัดอันดับยอดขาย</span></button>' +
-    '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>' +
-    '<button class="menu-item ' + (currentView==='rankingall'?'active':'') + '" data-view="rankingall"><span class="menu-item-icon">🏅</span><span>จัดอันดับพนักงานทุกสาขา</span></button>';
+    '<button class="menu-item ' + (currentView==='rankingtrainer'?'active':'') + '" data-view="rankingtrainer"><span class="menu-item-icon">🏋</span><span>จัดอันดับเทรนเนอร์</span></button>';
   nav.innerHTML = html;
   nav.querySelectorAll('.menu-item').forEach(b => b.onclick = () => setView(b.dataset.view));
 }
@@ -948,20 +947,19 @@ function renderRankingView() {
   renderSidebar();
   const container = document.getElementById('rankingContainer');
 
-  // Per-branch sections (Top 5 only)
+  // Per-branch sections (all employees)
   const branchHtml = filteredBranches().map(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
       return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member };
     }).sort((a, b) => b.total - a.total);
     const branchTotal = emps.reduce((s, r) => s + r.total, 0);
-    const top5 = emps.slice(0, 5);
-    const maxEmpTotal = Math.max(...top5.map(r => r.total), 1);
+    const maxEmpTotal = Math.max(...emps.map(r => r.total), 1);
     let listHtml = '';
-    if (!top5.length) {
+    if (!emps.length) {
       listHtml = '<div class="ranking-empty">ยังไม่มีพนักงานในสาขานี้</div>';
     } else {
-      listHtml = top5.map((r, i) => {
+      listHtml = emps.map((r, i) => {
         const rankClass = i < 3 && r.total > 0 ? 'r' + (i+1) : '';
         const medal = i === 0 && r.total > 0 ? '🥇' : i === 1 && r.total > 0 ? '🥈' : i === 2 && r.total > 0 ? '🥉' : '#' + (i+1);
         const pct = maxEmpTotal ? Math.round(r.total / maxEmpTotal * 100) : 0;
@@ -988,7 +986,7 @@ function renderRankingView() {
     return '<div class="ranking-branch-card">' +
       '<div class="ranking-branch-header">' +
       '<div class="ranking-branch-title"><span class="emoji">' + br.emoji + '</span><span>สาขา' + br.name + '</span></div>' +
-      '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน · Top 5</div>' +
+      '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
 
@@ -1040,7 +1038,7 @@ function renderRankingView() {
   container.innerHTML =
     '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
-    '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (Top 5)</div>' +
+    '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (พนักงานทุกคน)</div>' +
     branchHtml;
 
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
@@ -1128,15 +1126,14 @@ function renderRankingTrainerView() {
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
       .sort((a, b) => b.train - a.train);
     const branchTrainTotal = trainers.reduce((s, r) => s + r.train, 0);
-    const top5 = trainers.slice(0, 5);
-    const maxTrain = Math.max(...top5.map(r => r.train), 1);
+    const maxTrain = Math.max(...trainers.map(r => r.train), 1);
     const accent = branchColor(br.id);
 
     let listHtml = '';
-    if (!top5.length) {
+    if (!trainers.length) {
       listHtml = '<div class="ranking-empty">ยังไม่มีเทรนเนอร์ในสาขานี้</div>';
     } else {
-      listHtml = top5.map((r, i) => {
+      listHtml = trainers.map((r, i) => {
         const inTop = r.train > 0 && i < 3;
         const rankClass = inTop ? 'r' + (i+1) : '';
         const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
@@ -1160,7 +1157,7 @@ function renderRankingTrainerView() {
     return '<div class="ranking-branch-card" style="border-left:5px solid ' + accent + '">' +
       '<div class="ranking-branch-header">' +
       '<div class="ranking-branch-title"><span class="emoji">' + br.emoji + '</span><span>สาขา' + br.name + '</span></div>' +
-      '<div class="ranking-branch-total">รวม <strong style="color:#92400E">🏋 ' + fmtInt(branchTrainTotal) + ' ครั้ง</strong> · ' + trainers.length + ' คน · Top 5</div>' +
+      '<div class="ranking-branch-total">รวม <strong style="color:#92400E">🏋 ' + fmtInt(branchTrainTotal) + ' ครั้ง</strong> · ' + trainers.length + ' คน</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
 
@@ -1215,9 +1212,9 @@ function renderRankingTrainerView() {
   combinedHtml += '</div></div>';
 
   container.innerHTML =
-    '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา</div>' +
+    '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
     combinedHtml +
-    '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา</div>' +
+    '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (เทรนเนอร์ทุกคน)</div>' +
     branchHtml;
 
 }
@@ -2248,6 +2245,7 @@ function renderYearSalesView() {
   branchTotals.forEach(b => { gPT += b.pt; gMEM += b.member; gDays += b.days; });
   const gT = gPT + gMEM;
 
+  const empCount = branchTotals.reduce((s, b) => s + b.emps.filter(e => e.total > 0).length, 0);
   let html = yearFilterBarHTML('ys', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
@@ -2260,10 +2258,15 @@ function renderYearSalesView() {
       '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">฿' + fmt0(gPT) + '</div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + (gT ? Math.round(gPT / gT * 100) : 0) + '% ของยอดรวม</div>' +
     '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #1F1F1F;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#1F1F1F">🎫 ยอด MEMBER</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#1F1F1F;margin-top:4px">฿' + fmt0(gMEM) + '</div>' +
+    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
+      '<div style="font-size:12px;font-weight:700;color:#991B1B">🎫 ยอด MEMBER</div>' +
+      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">฿' + fmt0(gMEM) + '</div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + (gT ? Math.round(gMEM / gT * 100) : 0) + '% ของยอดรวม</div>' +
+    '</div>' +
+    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
+      '<div style="font-size:12px;font-weight:700;color:#991B1B">📊 เฉลี่ยต่อพนักงาน</div>' +
+      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">฿' + fmt0(empCount ? Math.round(gT / empCount) : 0) + '</div>' +
+      '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + empCount + ' คนที่มียอด</div>' +
     '</div>' +
     '</div>';
 
@@ -2358,25 +2361,25 @@ function renderYearTrainView() {
 
   let html = yearFilterBarHTML('yt', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
-    '<div style="background:linear-gradient(135deg,#F59E0B,#92400E);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(245,158,11,0.25)">' +
+    '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
       '<div style="font-size:12px;font-weight:700;opacity:0.9">🏋 จำนวนเทรนรวมทั้งหมด</div>' +
       '<div style="font-size:26px;font-weight:900;margin-top:4px">' + fmtInt(gTrain) + ' <span style="font-size:14px;font-weight:700;opacity:0.9">ครั้ง</span></div>' +
       '<div style="font-size:11px;opacity:0.85;margin-top:4px">รวมทุกสาขา · ' + gTrainers + ' เทรนเนอร์</div>' +
     '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #92400E;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#92400E">💪 เทรนเนอร์ทั้งหมด</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#92400E;margin-top:4px">' + gTrainers + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">คน</span></div>' +
+    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
+      '<div style="font-size:12px;font-weight:700;color:#991B1B">💪 เทรนเนอร์ทั้งหมด</div>' +
+      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">' + gTrainers + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">คน</span></div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + branchesView.length + ' สาขา</div>' +
     '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #92400E;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#92400E">🥇 เทรนสูงสุด</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#92400E;margin-top:4px">' + fmtInt(top ? top.train : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div>' +
+    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
+      '<div style="font-size:12px;font-weight:700;color:#991B1B">🥇 เทรนสูงสุด</div>' +
+      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">' + fmtInt(top ? top.train : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + topLabel + '</div>' +
     '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #92400E;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#92400E">📊 เฉลี่ยต่อเทรนเนอร์</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#92400E;margin-top:4px">' + fmtInt(gTrainers ? Math.round(gTrain / gTrainers) : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง/คน</span></div>' +
-      '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">ตลอด 12 เดือน</div>' +
+    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
+      '<div style="font-size:12px;font-weight:700;color:#991B1B">📊 เฉลี่ยต่อเทรนเนอร์</div>' +
+      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">' + fmtInt(gTrainers ? Math.round(gTrain / gTrainers) : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง/คน</span></div>' +
+      '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">ตามช่วงที่เลือก</div>' +
     '</div>' +
     '</div>';
 
@@ -2385,7 +2388,7 @@ function renderYearTrainView() {
   const top5 = allRows.filter(r => r.train > 0).slice(0, 5);
 
   html += '<div class="card" style="margin-bottom:16px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid #F59E0B">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid var(--red)">' +
     '<h3 style="margin:0;border:none;padding:0"><span>🏅</span> Top 5 เทรนเนอร์ยอดเทรนสูงสุด (รวมทุกสาขา)</h3>' +
     '<div style="font-size:12px;color:var(--gray-text);font-weight:600">จาก ' + allRows.filter(r => r.train > 0).length + ' คนที่มียอด</div>' +
     '</div>' +
@@ -3191,7 +3194,7 @@ function applyAuthUIBoot() {
       // Restore the last view the user was on (saved by setView)
       let last = null;
       try { last = JSON.parse(localStorage.getItem(STORAGE_VIEW) || 'null'); } catch(e){}
-      const validViews = ['branch','overview','recordsales','summarychart','yearsales','yeartrain','history','ranking','rankingall','rankingtrainer','users'];
+      const validViews = ['branch','overview','recordsales','summarychart','yearsales','yeartrain','history','ranking','rankingtrainer','users'];
       const v = last && validViews.indexOf(last.view) >= 0 ? last.view : 'overview';
       if (last && last.branchId && BRANCHES.some(b => b.id === last.branchId)) activeBranch = last.branchId;
       setView(v);
