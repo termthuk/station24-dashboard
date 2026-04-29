@@ -52,6 +52,14 @@ const KPI_LINES = [
   { value: 150000, color: '#16A34A', label: 'KPI MAX' },
 ];
 const KPI_THRESHOLD_MAX = Math.max.apply(null, KPI_LINES.map(k => k.value));
+// Per-bar color based on KPI tier achievement
+const KPI_TIER_COLORS = { red: '#DC2626', yellow: '#EAB308', green: '#16A34A' };
+function kpiBarColor(v) {
+  v = +v || 0;
+  if (v >= 150000) return KPI_TIER_COLORS.green;
+  if (v >= 85000)  return KPI_TIER_COLORS.yellow;
+  return KPI_TIER_COLORS.red;
+}
 
 // 3-branch comparison chart: branch → "team" mapping (A/B/C)
 const THREE_BRANCH_TEAMS = [
@@ -1966,17 +1974,26 @@ function renderSummaryChartView() {
     if (!ctx) return;
 
     const labels = all.map(x => x.emp.name);
+    const ptData = all.map(x => x.pt);
+    const memData = all.map(x => x.member);
+    const planData = all.map(x => x.plan);
     scBranchCharts['c_' + br.id] = new Chart(ctx, {
       type: 'bar',
       data: { labels: labels, datasets: [
-        { label: '💪 PT', data: all.map(x => x.pt), backgroundColor: CHART_COLORS.pt, borderRadius: 4 },
-        { label: '🎫 MEMBER', data: all.map(x => x.member), backgroundColor: CHART_COLORS.member, borderRadius: 4 },
-        { label: '📋 PLAN', data: all.map(x => x.plan), backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
+        { label: '💪 PT', data: ptData, backgroundColor: ptData.map(kpiBarColor), borderRadius: 4 },
+        { label: '🎫 MEMBER', data: memData, backgroundColor: memData.map(kpiBarColor), borderRadius: 4 },
+        { label: '📋 PLAN', data: planData, backgroundColor: planData.map(kpiBarColor), borderRadius: 4 }
       ]},
       options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
         layout: { padding: { top: 30 } },
         plugins: {
-          legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 } } },
+          legend: { position: 'bottom', labels: { padding: 10, font: { size: 11, weight: 600 },
+            generateLabels: () => [
+              { text: 'ยังไม่ถึง 85K',         fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
+              { text: 'ถึง 85K (KPI Min)',     fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
+              { text: 'ถึง 150K (KPI MAX)',    fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false }
+            ]
+          }, onClick: () => {} },
           tooltip: { callbacks: {
             title: items => {
               if (!items.length) return '';
@@ -2023,6 +2040,7 @@ function renderSummaryChartView() {
       const ch = scBranchCharts[k];
       if (!ch || !ch.data || !ch.data.datasets) return;
       if (k === 'three_combined') return;
+      if (k.startsWith('c_')) return; // per-branch charts now use KPI tier colors, not CHART_COLORS
       if (k.startsWith('t_')) {
         const ds = ch.data.datasets[0];
         if (ds && Array.isArray(ds.data)) {
