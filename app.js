@@ -947,18 +947,21 @@ function renderIndividualView() {
 function renderRankingView() {
   renderSidebar();
   const container = document.getElementById('rankingContainer');
-  container.innerHTML = filteredBranches().map(br => {
+
+  // Per-branch sections (Top 5 only)
+  const branchHtml = filteredBranches().map(br => {
     const emps = br.employees.map(e => {
       const t = empDailyTotals(br.id, e.id);
       return { emp: e, pt: t.pt, member: t.member, plan: t.plan, days: t.days, total: t.pt + t.member };
     }).sort((a, b) => b.total - a.total);
     const branchTotal = emps.reduce((s, r) => s + r.total, 0);
-    const maxEmpTotal = Math.max(...emps.map(r => r.total), 1);
+    const top5 = emps.slice(0, 5);
+    const maxEmpTotal = Math.max(...top5.map(r => r.total), 1);
     let listHtml = '';
-    if (!emps.length) {
+    if (!top5.length) {
       listHtml = '<div class="ranking-empty">ยังไม่มีพนักงานในสาขานี้</div>';
     } else {
-      listHtml = emps.map((r, i) => {
+      listHtml = top5.map((r, i) => {
         const rankClass = i < 3 && r.total > 0 ? 'r' + (i+1) : '';
         const medal = i === 0 && r.total > 0 ? '🥇' : i === 1 && r.total > 0 ? '🥈' : i === 2 && r.total > 0 ? '🥉' : '#' + (i+1);
         const pct = maxEmpTotal ? Math.round(r.total / maxEmpTotal * 100) : 0;
@@ -985,9 +988,60 @@ function renderRankingView() {
     return '<div class="ranking-branch-card">' +
       '<div class="ranking-branch-header">' +
       '<div class="ranking-branch-title"><span class="emoji">' + br.emoji + '</span><span>สาขา' + br.name + '</span></div>' +
-      '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน</div>' +
+      '<div class="ranking-branch-total">ยอดรวม <strong>฿' + fmt0(branchTotal) + '</strong> · ' + emps.length + ' คน · Top 5</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
+
+  // Combined ranking across all filtered branches (Top 5)
+  const all = [];
+  filteredBranches().forEach(br => br.employees.forEach(e => {
+    const t = empDailyTotals(br.id, e.id);
+    all.push({ branch: br, emp: e, pt: t.pt, member: t.member, days: t.days, total: t.pt + t.member });
+  }));
+  all.sort((a, b) => b.total - a.total);
+  const top5all = all.slice(0, 5);
+  const grandTotal = all.reduce((s, r) => s + r.total, 0);
+  const maxAll = Math.max(...top5all.map(r => r.total), 1);
+
+  let combinedHtml = '<div class="ranking-branch-card"><div class="ranking-branch-header">' +
+    '<div class="ranking-branch-title"><span class="emoji">🏅</span><span>Top 5 รวมทุกสาขา</span></div>' +
+    '<div class="ranking-branch-total">' + all.length + ' คน · ฿' + fmt0(grandTotal) + ' · Top 5</div>' +
+    '</div><div class="ranking-list">';
+  if (!top5all.length) {
+    combinedHtml += '<div class="ranking-empty">ยังไม่มีพนักงาน</div>';
+  } else {
+    combinedHtml += top5all.map((r, i) => {
+      const inTop = r.total > 0 && i < 3;
+      const rankClass = inTop ? 'r' + (i+1) : '';
+      const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
+      const pct = maxAll ? Math.round(r.total / maxAll * 100) : 0;
+      const pos = r.emp.position || 'Sale';
+      const pi = posIcon(pos);
+      const av = r.emp.photo
+        ? '<img class="ranking-avatar-img" src="' + r.emp.photo + '">'
+        : '<div class="ranking-avatar" style="background:' + avatarColor(r.emp.id) + '">' + avatarInitials(r.emp.name) + '</div>';
+      return '<div class="ranking-row ' + rankClass + '" style="position:relative">' +
+        '<div class="ranking-rank-badge">' + medal + '</div>' + av +
+        '<div class="ranking-info">' +
+        '<div class="ranking-name">' + r.emp.name + ' <span style="font-size:11px;font-weight:600;color:var(--gray-text);margin-left:4px">' + r.branch.emoji + ' ' + r.branch.name + '</span></div>' +
+        '<div class="ranking-meta">' + pi + ' ' + pos + ' · ' + r.emp.id + ' · ' + r.days + ' วัน</div>' +
+        '<div class="ranking-breakdown">' +
+        '<span class="pt">💪 PT ฿' + fmt0(r.pt) + '</span>' +
+        '<span class="mem">🎫 MEM ฿' + fmt0(r.member) + '</span></div>' +
+        '<div class="ranking-bar-wrap"><div class="ranking-bar" style="width:' + pct + '%"></div></div>' +
+        '</div>' +
+        '<div class="ranking-total">฿' + fmt0(r.total) + '</div>' +
+        '<button class="ranking-edit-btn" data-rank-edit="' + r.emp.id + '" title="แก้ไข ' + r.emp.name + '" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:#DBEAFE;color:#1E40AF;border:none;cursor:pointer;font-size:14px;font-weight:700;z-index:5">✎</button>' +
+        '</div>';
+    }).join('');
+  }
+  combinedHtml += '</div></div>';
+
+  container.innerHTML =
+    '<div style="margin-bottom:8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏅</span> รวมทุกสาขา (Top 5)</div>' +
+    combinedHtml +
+    '<div style="margin:18px 0 8px;padding:10px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:13px;font-weight:700;color:#78350F"><span>🏢</span> แยกตามสาขา (Top 5)</div>' +
+    branchHtml;
 
   container.querySelectorAll('[data-rank-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.rankEdit); };
@@ -1074,14 +1128,15 @@ function renderRankingTrainerView() {
       .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, train: t.train, days: t.days }; })
       .sort((a, b) => b.train - a.train);
     const branchTrainTotal = trainers.reduce((s, r) => s + r.train, 0);
-    const maxTrain = Math.max(...trainers.map(r => r.train), 1);
+    const top5 = trainers.slice(0, 5);
+    const maxTrain = Math.max(...top5.map(r => r.train), 1);
     const accent = branchColor(br.id);
 
     let listHtml = '';
-    if (!trainers.length) {
+    if (!top5.length) {
       listHtml = '<div class="ranking-empty">ยังไม่มีเทรนเนอร์ในสาขานี้</div>';
     } else {
-      listHtml = trainers.map((r, i) => {
+      listHtml = top5.map((r, i) => {
         const inTop = r.train > 0 && i < 3;
         const rankClass = inTop ? 'r' + (i+1) : '';
         const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
@@ -1105,7 +1160,7 @@ function renderRankingTrainerView() {
     return '<div class="ranking-branch-card" style="border-left:5px solid ' + accent + '">' +
       '<div class="ranking-branch-header">' +
       '<div class="ranking-branch-title"><span class="emoji">' + br.emoji + '</span><span>สาขา' + br.name + '</span></div>' +
-      '<div class="ranking-branch-total">รวม <strong style="color:#92400E">🏋 ' + fmtInt(branchTrainTotal) + ' ครั้ง</strong> · ' + trainers.length + ' คน</div>' +
+      '<div class="ranking-branch-total">รวม <strong style="color:#92400E">🏋 ' + fmtInt(branchTrainTotal) + ' ครั้ง</strong> · ' + trainers.length + ' คน · Top 5</div>' +
       '</div><div class="ranking-list">' + listHtml + '</div></div>';
   }).join('');
 
@@ -1119,7 +1174,8 @@ function renderRankingTrainerView() {
   all.sort((a, b) => b.train - a.train);
 
   const grandTrain = all.reduce((s, r) => s + r.train, 0);
-  const maxAll = Math.max(...all.map(r => r.train), 1);
+  const top5all = all.slice(0, 5);
+  const maxAll = Math.max(...top5all.map(r => r.train), 1);
   const topName = all[0] && all[0].train > 0 ? all[0].emp.name + ' (' + all[0].branch.emoji + ' ' + all[0].branch.name + ')' : '—';
 
   let combinedHtml = '<div class="kpi-grid" style="margin-bottom:18px">' +
@@ -1129,14 +1185,14 @@ function renderRankingTrainerView() {
     '</div>';
 
   combinedHtml += '<div class="ranking-branch-card"><div class="ranking-branch-header">' +
-    '<div class="ranking-branch-title"><span class="emoji">🏅</span><span>อันดับเทรนเนอร์รวมทุกสาขา</span></div>' +
-    '<div class="ranking-branch-total">' + all.length + ' คน · 🏋 ' + fmtInt(grandTrain) + ' ครั้ง</div>' +
+    '<div class="ranking-branch-title"><span class="emoji">🏅</span><span>Top 5 เทรนเนอร์รวมทุกสาขา</span></div>' +
+    '<div class="ranking-branch-total">' + all.length + ' คน · 🏋 ' + fmtInt(grandTrain) + ' ครั้ง · Top 5</div>' +
     '</div><div class="ranking-list">';
 
-  if (!all.length) {
+  if (!top5all.length) {
     combinedHtml += '<div class="ranking-empty">ยังไม่มีเทรนเนอร์</div>';
   } else {
-    combinedHtml += all.map((r, i) => {
+    combinedHtml += top5all.map((r, i) => {
       const inTop = r.train > 0 && i < 3;
       const rankClass = inTop ? 'r' + (i+1) : '';
       const medal = inTop ? (i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉') : '#' + (i+1);
