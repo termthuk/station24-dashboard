@@ -2425,7 +2425,11 @@ function renderYearSalesView() {
   const gT = gPT + gMEM;
 
   const empCount = branchTotals.reduce((s, b) => s + b.emps.filter(e => e.total > 0).length, 0);
-  let html = viewExportBarHTML('yearSalesContainer', 'Station24_ยอดขายสะสม') +
+  let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<button type="button" id="ysRefresh" style="padding:7px 14px;border:1px solid #16A34A;background:#fff;color:#16A34A;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🔄 ดึงข้อมูลจากพนักงานใหม่</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearSalesContainer" data-name="Station24_ยอดขายสะสม" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearSalesContainer" data-name="Station24_ยอดขายสะสม" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '</div>' +
     yearFilterBarHTML('ys', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
     '<div style="background:linear-gradient(135deg,#DC2626,#991B1B);color:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 2px 10px rgba(220,38,38,0.25)">' +
@@ -2494,6 +2498,26 @@ function renderYearSalesView() {
   container.querySelectorAll('.ys-edit-yo').forEach(btn => {
     btn.onclick = () => openYearOverrideModal(btn.dataset.eid, btn.dataset.bid);
   });
+  const refreshBtn = document.getElementById('ysRefresh');
+  if (refreshBtn) refreshBtn.onclick = () => {
+    if (!confirm('ดึงข้อมูลจากพนักงานใหม่?\nการแก้ไขชื่อ/สาขา/ตำแหน่ง/ยอด ในหน้านี้จะถูกล้างทั้งหมด')) return;
+    let cleared = 0;
+    Object.keys(YEAR_OVERRIDES).forEach(eid => {
+      // Drop the sales-related fields; if nothing remains for that emp, drop the whole entry
+      const o = YEAR_OVERRIDES[eid];
+      delete o.sales;
+      // Clear name/branch/position too — these are display fields and the user
+      // asked to refresh from the actual employee record.
+      delete o.name;
+      delete o.branchId;
+      delete o.position;
+      cleared++;
+      if (Object.keys(o).length === 0) delete YEAR_OVERRIDES[eid];
+    });
+    saveYearOverrides();
+    showToast(cleared ? '✓ ดึงข้อมูลใหม่แล้ว · ล้าง ' + cleared + ' รายการ' : '✓ ไม่มีรายการที่แก้ไขเอง');
+    renderYearSalesView();
+  };
   const fromIn = document.getElementById('ysFrom');
   const toIn   = document.getElementById('ysTo');
   const preset = document.getElementById('ysPreset');
