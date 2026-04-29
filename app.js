@@ -1757,7 +1757,7 @@ function renderSummaryChartView() {
     const grandTotal = branchTotals.reduce((s, v) => s + v, 0);
     const sumBoxes = threeGroups.map((g, i) => {
       return '<div style="flex:1;min-width:180px;padding:10px 14px;background:' + g.team.cardBg + ';border-left:4px solid ' + g.team.cardBorder + ';border-radius:8px">' +
-        '<div style="font-size:11px;font-weight:700;color:' + g.team.color + '">' + g.team.emoji + ' ' + g.team.label + ' · ' + g.rows.length + ' คน</div>' +
+        '<div style="font-size:11px;font-weight:700;color:' + g.team.color + '">' + g.branch.emoji + ' สาขา' + g.branch.name + ' · ' + g.rows.length + ' คน</div>' +
         '<div style="font-size:18px;font-weight:800;color:' + g.team.color + ';margin-top:2px">฿' + fmt0(branchTotals[i]) + '</div></div>';
     }).join('') +
     '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEE2E2;border-left:4px solid #DC2626;border-radius:8px">' +
@@ -1920,7 +1920,7 @@ function renderSummaryChartView() {
     if (branchTotals.some(v => v > 0)) {
       const ctx3 = document.getElementById('scThreeBranch');
       if (ctx3) {
-        const labels = threeGroups.map(g => g.team.emoji + ' ทีม ' + g.team.team + ' · ' + g.branch.name);
+        const labels = threeGroups.map(g => g.branch.emoji + ' ' + g.branch.name);
         const colors = threeGroups.map(g => g.team.cardBorder);
         scBranchCharts['three_combined'] = new Chart(ctx3, {
           type: 'bar',
@@ -2300,13 +2300,14 @@ function saveThreeBranchChart(fmt) {
 
   ctx.fillStyle = '#DC2626';
   ctx.font = 'bold 16px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText('🏢 ทีม A · ศรีนครินทร์ · ทีม B · ศรีราชา · ทีม C · ศรีสมาน', pad, 52);
+  ctx.fillText('🏢 เปรียบเทียบยอดรวม PT+MEM ของ 3 สาขา', pad, 52);
 
   ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
   let xOff = pad;
   totals.forEach(t => {
+    const br = getBranch(t.team.id);
     ctx.fillStyle = t.team.color;
-    const txt = t.team.emoji + ' ' + t.team.label + ': ฿' + fmt0(t.sum);
+    const txt = (br ? br.emoji + ' ' + br.name : t.team.id) + ': ฿' + fmt0(t.sum);
     ctx.fillText(txt, xOff, 82);
     xOff += ctx.measureText(txt).width + 24;
   });
