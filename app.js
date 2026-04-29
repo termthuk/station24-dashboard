@@ -48,8 +48,8 @@ const STORAGE_POSITIONS = 'station24_positions_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
 const KPI_LINES = [
-  { value: 8500,   color: '#DC2626', label: 'KPI ขั้นต่ำ' },
-  { value: 150000, color: '#16A34A', label: 'KPI สูงสุด' },
+  { value: 85000,  color: '#DC2626', label: 'KPI Min' },
+  { value: 150000, color: '#16A34A', label: 'KPI MAX' },
 ];
 const KPI_THRESHOLD_MAX = Math.max.apply(null, KPI_LINES.map(k => k.value));
 
