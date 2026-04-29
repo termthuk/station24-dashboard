@@ -2350,7 +2350,6 @@ function renderYearSalesView() {
             av +
             '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + (e.emp.position || 'Sale') + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน</span></div>' +
             '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">฿' + fmt0(e.total) + '</div>' +
-            '<button type="button" class="ys-edit-btn" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" style="padding:6px 14px;border:1px solid ' + accent + ';background:#fff;color:' + accent + ';border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">✎ แก้ไข</button>' +
             '</div>';
         }).join('') +
         '</div>'
@@ -2360,15 +2359,6 @@ function renderYearSalesView() {
   const container = document.getElementById('yearSalesContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
-  container.querySelectorAll('.ys-edit-btn').forEach(btn => {
-    btn.onclick = () => {
-      // Swap activeBranch only for the duration of the modal so other views
-      // (branch view, sidebar) keep their original active branch on return
-      dailyModalReturnBranch = activeBranch;
-      activeBranch = btn.dataset.bid;
-      openDailyModal(btn.dataset.eid);
-    };
-  });
   const fromIn = document.getElementById('ysFrom');
   const toIn   = document.getElementById('ysTo');
   const preset = document.getElementById('ysPreset');
@@ -2443,7 +2433,6 @@ function renderYearTrainView() {
     '</div>';
 
   // Combined Top 5 trainers across all branches (train > 0)
-  const today = todayBKK();
   const top5 = allRows.filter(r => r.train > 0).slice(0, 5);
 
   html += '<div class="card" style="margin-bottom:16px">' +
@@ -2464,8 +2453,6 @@ function renderYearTrainView() {
             av +
             '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.days + ' วันที่บันทึก</span></div>' +
             '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">🏋 ' + fmtInt(e.train) + ' ครั้ง</div>' +
-            '<input type="number" class="yt-train-input" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" min="0" step="1" placeholder="+เทรน" style="width:80px;padding:5px 8px;border:1px solid var(--gray-line);border-radius:6px;font-family:inherit;font-size:12px;text-align:right">' +
-            '<button type="button" class="yt-add-btn" data-bid="' + e.branch.id + '" data-eid="' + e.emp.id + '" style="padding:6px 14px;border:1px solid ' + accent + ';background:' + accent + ';color:#fff;border-radius:6px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;white-space:nowrap">+ บันทึก</button>' +
             '</div>';
         }).join('') +
         '</div>'
@@ -2475,28 +2462,6 @@ function renderYearTrainView() {
   const container = document.getElementById('yearTrainContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
-  container.querySelectorAll('.yt-add-btn').forEach(btn => {
-    btn.onclick = () => {
-      const bid = btn.dataset.bid, eid = btn.dataset.eid;
-      const input = container.querySelector('.yt-train-input[data-bid="' + bid + '"][data-eid="' + eid + '"]');
-      if (!input) return;
-      const add = +input.value || 0;
-      if (add <= 0) { showToast('⚠ กรอกจำนวนเทรนก่อน', true); return; }
-      if (!DAILY[bid]) DAILY[bid] = {};
-      if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
-      const prev = DAILY[bid][eid][today] || { pt: 0, member: 0, plan: 0, train: 0 };
-      DAILY[bid][eid][today] = {
-        pt: +prev.pt || 0,
-        member: +prev.member || 0,
-        plan: +prev.plan || 0,
-        train: (+prev.train || 0) + add
-      };
-      saveDaily();
-      logSale(bid, eid, today, 0, 0, 0, add);
-      showToast('✓ เพิ่มเทรน ' + add + ' ครั้ง · ' + empName(eid) + ' (' + today + ')');
-      renderYearTrainView();
-    };
-  });
   const fromIn = document.getElementById('ytFrom');
   const toIn   = document.getElementById('ytTo');
   const preset = document.getElementById('ytPreset');
