@@ -2385,12 +2385,12 @@ function renderYearSalesView() {
     (top5.length
       ? '<div style="display:flex;flex-direction:column;gap:8px">' +
         top5.map((e, i) => {
-          const accent = branchColor(e.branch.id);
+          const accent = '#16A34A';
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i+1);
           const av = e.emp.photo
             ? '<img src="' + e.emp.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + accent + '">'
             : '<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(e.emp.id) + ';flex-shrink:0;border:2px solid ' + accent + '">' + avatarInitials(e.emp.name) + '</div>';
-          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#FFFBEB' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#F0FDF4' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
             '<span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '22px' : '14px') + ';font-weight:800;color:' + accent + ';text-align:center;flex-shrink:0">' + medal + '</span>' +
             av +
             '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + (e.emp.position || 'Sale') + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน</span></div>' +
@@ -2488,12 +2488,12 @@ function renderYearTrainView() {
     (top5.length
       ? '<div style="display:flex;flex-direction:column;gap:8px">' +
         top5.map((e, i) => {
-          const accent = branchColor(e.branch.id);
+          const accent = '#16A34A';
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i+1);
           const av = e.emp.photo
             ? '<img src="' + e.emp.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + accent + '">'
             : '<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(e.emp.id) + ';flex-shrink:0;border:2px solid ' + accent + '">' + avatarInitials(e.emp.name) + '</div>';
-          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#FFFBEB' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#F0FDF4' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
             '<span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '22px' : '14px') + ';font-weight:800;color:' + accent + ';text-align:center;flex-shrink:0">' + medal + '</span>' +
             av +
             '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.days + ' วันที่บันทึก</span></div>' +
