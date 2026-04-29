@@ -44,6 +44,7 @@ const STORAGE_COLORS = 'station24_chart_colors_v1';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
+const STORAGE_VIEW = 'station24_last_view_v1';
 const STORAGE_POSITIONS = 'station24_positions_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
@@ -393,6 +394,7 @@ function setView(v) {
   }
   // Non-admin trying to access users view → redirect to overview
   if (v === 'users' && !isAdmin()) { setView('overview'); return; }
+  try { localStorage.setItem(STORAGE_VIEW, JSON.stringify({ view: v, branchId: activeBranch })); } catch(e){}
   renderMenuNav();
   if (v === 'branch') renderBranchView();
   else if (v === 'overview') renderOverviewView();
@@ -2844,7 +2846,13 @@ function applyAuthUIBoot() {
       activeBranch = currentUser.branchId;
       setView('branch');
     } else {
-      setView('overview');
+      // Restore the last view the user was on (saved by setView)
+      let last = null;
+      try { last = JSON.parse(localStorage.getItem(STORAGE_VIEW) || 'null'); } catch(e){}
+      const validViews = ['branch','overview','recordsales','summarychart','history','ranking','rankingall','rankingtrainer','users'];
+      const v = last && validViews.indexOf(last.view) >= 0 ? last.view : 'overview';
+      if (last && last.branchId && BRANCHES.some(b => b.id === last.branchId)) activeBranch = last.branchId;
+      setView(v);
     }
   } else {
     if (overlay) overlay.style.display = 'flex';
