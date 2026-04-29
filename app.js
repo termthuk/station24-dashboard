@@ -40,7 +40,7 @@ const SEED_DAILY = {
 const STORAGE_BRANCHES = 'station24_branches_v2';
 const STORAGE_DAILY = 'station24_daily_v1';
 const STORAGE_LOG = 'station24_sales_log_v1';
-const STORAGE_COLORS = 'station24_chart_colors_v1';
+const STORAGE_COLORS = 'station24_chart_colors_v2';
 const STORAGE_BRANCH_COLORS = 'station24_branch_colors_v1';
 const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
@@ -69,15 +69,21 @@ const THREE_BRANCH_TEAMS = [
   { id: 'srisaman',   team: 'C', emoji: '🅲', label: 'ทีม C · ศรีสมาน',     cardBg: '#D1FAE5', cardBorder: '#16A34A', color: '#065F46', zoneRgba: 'rgba(22,163,74,0.08)'  },
 ];
 
-const DEFAULT_CHART_COLORS = { pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' };
+// CHART_COLORS = bar colors for the 3-branch comparison chart
+//   a = ศรีนครินทร์ (THREE_BRANCH_TEAMS[0])
+//   b = ศรีราชา     (THREE_BRANCH_TEAMS[1])
+//   c = ศรีสมาน    (THREE_BRANCH_TEAMS[2])
+const PLAN_BAR_COLOR = '#D97706';
+const DEFAULT_CHART_COLORS = { a: '#F59E0B', b: '#2563EB', c: '#16A34A' };
 const CHART_COLOR_PRESETS = [
-  { id: 'default', name: 'แดง-ดำ-ส้ม (Station 24)', pt: '#DC2626', member: '#1F1F1F', plan: '#D97706' },
-  { id: 'ocean',   name: 'ฟ้า-น้ำเงิน-คราม',        pt: '#0EA5E9', member: '#1E40AF', plan: '#6366F1' },
-  { id: 'forest',  name: 'เขียว-มะกอก-เขียวเข้ม',   pt: '#16A34A', member: '#065F46', plan: '#84CC16' },
-  { id: 'sunset',  name: 'ส้ม-ชมพู-ม่วง',           pt: '#F97316', member: '#EC4899', plan: '#9333EA' },
-  { id: 'mono',    name: 'ขาว-ดำ (Monochrome)',     pt: '#111827', member: '#6B7280', plan: '#D1D5DB' },
-  { id: 'candy',   name: 'พาสเทลหวาน',              pt: '#F472B6', member: '#60A5FA', plan: '#FBBF24' },
-  { id: 'neon',    name: 'นีออน',                   pt: '#EF4444', member: '#06B6D4', plan: '#A855F7' },
+  { id: 'default', name: 'มาตรฐาน (เหลือง-น้ำเงิน-เขียว)', a: '#F59E0B', b: '#2563EB', c: '#16A34A' },
+  { id: 'station', name: 'แดง-ดำ-ส้ม (Station 24)',        a: '#DC2626', b: '#1F1F1F', c: '#D97706' },
+  { id: 'ocean',   name: 'ฟ้า-น้ำเงิน-คราม',                a: '#0EA5E9', b: '#1E40AF', c: '#6366F1' },
+  { id: 'forest',  name: 'เขียว-มะกอก-เขียวเข้ม',           a: '#16A34A', b: '#065F46', c: '#84CC16' },
+  { id: 'sunset',  name: 'ส้ม-ชมพู-ม่วง',                   a: '#F97316', b: '#EC4899', c: '#9333EA' },
+  { id: 'mono',    name: 'ขาว-ดำ (Monochrome)',             a: '#111827', b: '#6B7280', c: '#D1D5DB' },
+  { id: 'candy',   name: 'พาสเทลหวาน',                      a: '#F472B6', b: '#60A5FA', c: '#FBBF24' },
+  { id: 'neon',    name: 'นีออน',                           a: '#EF4444', b: '#06B6D4', c: '#A855F7' },
 ];
 
 // ===== Supabase cloud sync =====
@@ -87,7 +93,7 @@ const SYNC_KEYS = [
   'station24_branches_v2',
   'station24_daily_v1',
   'station24_sales_log_v1',
-  'station24_chart_colors_v1',
+  'station24_chart_colors_v2',
   'station24_branch_colors_v1',
   'station24_users_v1',
   'station24_positions_v1'
@@ -165,7 +171,7 @@ if (LOG.length === 0) {
 }
 let CHART_COLORS = loadJSON(STORAGE_COLORS, DEFAULT_CHART_COLORS);
 (function normalizeColors(){
-  ['pt','member','plan'].forEach(k => { if (!CHART_COLORS[k]) CHART_COLORS[k] = DEFAULT_CHART_COLORS[k]; });
+  ['a','b','c'].forEach(k => { if (!CHART_COLORS[k]) CHART_COLORS[k] = DEFAULT_CHART_COLORS[k]; });
 })();
 function saveChartColors() { saveJSON(STORAGE_COLORS, CHART_COLORS); }
 
@@ -1717,10 +1723,13 @@ function renderSummaryChartView() {
     '<div style="font-size:12px;color:var(--gray-text)">ดึงจาก "พนักงาน" (DAILY)</div>' +
     '</div>';
 
-  // Color customizer
+  // Color customizer (applies to the 3-branch comparison chart only)
+  const branchALbl = (getBranch('srinakarin') || { emoji: '🌆', name: 'ศรีนครินทร์' });
+  const branchBLbl = (getBranch('sriracha')   || { emoji: '🌊', name: 'ศรีราชา'   });
+  const branchCLbl = (getBranch('srisaman')   || { emoji: '🏙️', name: 'ศรีสมาน'   });
   html += '<div class="card" style="margin-bottom:16px;padding:12px 16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
-    '<div style="font-size:13px;font-weight:700"><span>🎨</span> ปรับสีแท่งกราฟ</div>' +
+    '<div style="font-size:13px;font-weight:700"><span>🎨</span> ปรับสีกราฟเปรียบเทียบยอดรวม</div>' +
     '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
     '<label style="font-size:11px;color:var(--gray-text);font-weight:600">ชุดสีสำเร็จ:</label>' +
     '<select id="scColorPreset" class="search-box" style="min-width:180px;padding:6px 10px;font-size:12px">' +
@@ -1730,14 +1739,14 @@ function renderSummaryChartView() {
     '</div></div>' +
     '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">' +
     '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--black);background:#FAFAFA;padding:6px 12px;border-radius:8px;border:1px solid var(--gray-line)">' +
-    '💪 PT <input type="color" id="scColorPT" value="' + CHART_COLORS.pt + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
-    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorPTHex">' + CHART_COLORS.pt + '</span></label>' +
+    branchALbl.emoji + ' ' + branchALbl.name + ' <input type="color" id="scColorA" value="' + CHART_COLORS.a + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
+    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorAHex">' + CHART_COLORS.a + '</span></label>' +
     '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--black);background:#FAFAFA;padding:6px 12px;border-radius:8px;border:1px solid var(--gray-line)">' +
-    '🎫 MEMBER <input type="color" id="scColorMember" value="' + CHART_COLORS.member + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
-    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorMemberHex">' + CHART_COLORS.member + '</span></label>' +
+    branchBLbl.emoji + ' ' + branchBLbl.name + ' <input type="color" id="scColorB" value="' + CHART_COLORS.b + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
+    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorBHex">' + CHART_COLORS.b + '</span></label>' +
     '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--black);background:#FAFAFA;padding:6px 12px;border-radius:8px;border:1px solid var(--gray-line)">' +
-    '📋 PLAN <input type="color" id="scColorPlan" value="' + CHART_COLORS.plan + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
-    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorPlanHex">' + CHART_COLORS.plan + '</span></label>' +
+    branchCLbl.emoji + ' ' + branchCLbl.name + ' <input type="color" id="scColorC" value="' + CHART_COLORS.c + '" style="width:34px;height:26px;border:none;cursor:pointer;padding:0;background:transparent">' +
+    '<span style="font-family:monospace;font-size:11px;color:var(--gray-text)" id="scColorCHex">' + CHART_COLORS.c + '</span></label>' +
     '</div></div>';
 
   // Download all
@@ -1931,7 +1940,7 @@ function renderSummaryChartView() {
       const ctx3 = document.getElementById('scThreeBranch');
       if (ctx3) {
         const labels = threeGroups.map(g => g.branch.emoji + ' ' + g.branch.name);
-        const colors = threeGroups.map(g => g.team.cardBorder);
+        const colors = [CHART_COLORS.a, CHART_COLORS.b, CHART_COLORS.c];
         scBranchCharts['three_combined'] = new Chart(ctx3, {
           type: 'bar',
           data: { labels: labels, datasets: [
@@ -1984,7 +1993,7 @@ function renderSummaryChartView() {
       data: { labels: labels, datasets: [
         { label: '💪 PT', data: ptData, backgroundColor: ptData.map(kpiBarColor), borderRadius: 4 },
         { label: '🎫 MEMBER', data: memData, backgroundColor: memData.map(kpiBarColor), borderRadius: 4 },
-        { label: '📋 PLAN', data: planData, backgroundColor: CHART_COLORS.plan, borderRadius: 4 }
+        { label: '📋 PLAN', data: planData, backgroundColor: PLAN_BAR_COLOR, borderRadius: 4 }
       ]},
       options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
         layout: { padding: { top: 30 } },
@@ -1994,7 +2003,7 @@ function renderSummaryChartView() {
               { text: 'PT/MEM ยังไม่ถึง 85K',  fillStyle: KPI_TIER_COLORS.red,    strokeStyle: KPI_TIER_COLORS.red,    lineWidth: 0, hidden: false },
               { text: 'PT/MEM ถึง 85K',        fillStyle: KPI_TIER_COLORS.yellow, strokeStyle: KPI_TIER_COLORS.yellow, lineWidth: 0, hidden: false },
               { text: 'PT/MEM ถึง 150K',       fillStyle: KPI_TIER_COLORS.green,  strokeStyle: KPI_TIER_COLORS.green,  lineWidth: 0, hidden: false },
-              { text: '📋 PLAN',                fillStyle: CHART_COLORS.plan,      strokeStyle: CHART_COLORS.plan,      lineWidth: 0, hidden: false }
+              { text: '📋 PLAN',                fillStyle: PLAN_BAR_COLOR,         strokeStyle: PLAN_BAR_COLOR,         lineWidth: 0, hidden: false }
             ]
           }, onClick: () => {} },
           tooltip: { callbacks: {
@@ -2040,58 +2049,36 @@ function renderSummaryChartView() {
   });
 
   function applyColorsLive() {
-    Object.keys(scBranchCharts).forEach(k => {
-      const ch = scBranchCharts[k];
-      if (!ch || !ch.data || !ch.data.datasets) return;
-      if (k === 'three_combined') return;
-      if (k.startsWith('c_')) {
-        // PT and MEMBER use KPI tier colors (skip), PLAN still follows CHART_COLORS
-        if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
-        ch.update('none');
-        return;
-      }
-      if (k.startsWith('t_')) {
-        const ds = ch.data.datasets[0];
-        if (ds && Array.isArray(ds.data)) {
-          const mx = Math.max(...ds.data, 0);
-          ds.backgroundColor = ds.data.map(v => v === mx && v > 0 ? CHART_COLORS.pt : CHART_COLORS.member);
-        }
-      } else {
-        if (ch.data.datasets[0]) ch.data.datasets[0].backgroundColor = CHART_COLORS.pt;
-        if (ch.data.datasets[1]) ch.data.datasets[1].backgroundColor = CHART_COLORS.member;
-        if (ch.data.datasets[2]) ch.data.datasets[2].backgroundColor = CHART_COLORS.plan;
-      }
+    // Color picker now controls ONLY the 3-branch comparison chart.
+    const ch = scBranchCharts['three_combined'];
+    if (ch && ch.data && ch.data.datasets[0]) {
+      ch.data.datasets[0].backgroundColor = [CHART_COLORS.a, CHART_COLORS.b, CHART_COLORS.c];
       ch.update('none');
+    }
+    ['a','b','c'].forEach(k => {
+      const ID = k.toUpperCase();
+      const hex = document.getElementById('scColor' + ID + 'Hex');
+      if (hex) hex.textContent = CHART_COLORS[k].toUpperCase();
+      const inp = document.getElementById('scColor' + ID);
+      if (inp) inp.value = CHART_COLORS[k];
     });
-    const ptHex = document.getElementById('scColorPTHex');
-    const memHex = document.getElementById('scColorMemberHex');
-    const plHex = document.getElementById('scColorPlanHex');
-    if (ptHex) ptHex.textContent = CHART_COLORS.pt.toUpperCase();
-    if (memHex) memHex.textContent = CHART_COLORS.member.toUpperCase();
-    if (plHex) plHex.textContent = CHART_COLORS.plan.toUpperCase();
-    const ptIn = document.getElementById('scColorPT');
-    const memIn = document.getElementById('scColorMember');
-    const plIn = document.getElementById('scColorPlan');
-    if (ptIn) ptIn.value = CHART_COLORS.pt;
-    if (memIn) memIn.value = CHART_COLORS.member;
-    if (plIn) plIn.value = CHART_COLORS.plan;
   }
 
-  const ptInput = document.getElementById('scColorPT');
-  if (ptInput) ptInput.oninput = e => { CHART_COLORS.pt = e.target.value; saveChartColors(); applyColorsLive(); };
-  const memInput = document.getElementById('scColorMember');
-  if (memInput) memInput.oninput = e => { CHART_COLORS.member = e.target.value; saveChartColors(); applyColorsLive(); };
-  const plInput = document.getElementById('scColorPlan');
-  if (plInput) plInput.oninput = e => { CHART_COLORS.plan = e.target.value; saveChartColors(); applyColorsLive(); };
+  const aInput = document.getElementById('scColorA');
+  if (aInput) aInput.oninput = e => { CHART_COLORS.a = e.target.value; saveChartColors(); applyColorsLive(); };
+  const bInput = document.getElementById('scColorB');
+  if (bInput) bInput.oninput = e => { CHART_COLORS.b = e.target.value; saveChartColors(); applyColorsLive(); };
+  const cInput = document.getElementById('scColorC');
+  if (cInput) cInput.oninput = e => { CHART_COLORS.c = e.target.value; saveChartColors(); applyColorsLive(); };
 
   const presetSel = document.getElementById('scColorPreset');
   if (presetSel) {
-    const cur = CHART_COLOR_PRESETS.find(p => p.pt === CHART_COLORS.pt && p.member === CHART_COLORS.member && p.plan === CHART_COLORS.plan);
+    const cur = CHART_COLOR_PRESETS.find(p => p.a === CHART_COLORS.a && p.b === CHART_COLORS.b && p.c === CHART_COLORS.c);
     presetSel.value = cur ? cur.id : 'default';
     presetSel.onchange = () => {
       const p = CHART_COLOR_PRESETS.find(x => x.id === presetSel.value);
       if (!p) return;
-      CHART_COLORS.pt = p.pt; CHART_COLORS.member = p.member; CHART_COLORS.plan = p.plan;
+      CHART_COLORS.a = p.a; CHART_COLORS.b = p.b; CHART_COLORS.c = p.c;
       saveChartColors(); applyColorsLive();
       showToast('🎨 ใช้ชุดสี "' + p.name + '"');
     };
@@ -2891,7 +2878,7 @@ function applyKeyToGlobals(key, value) {
   if (key === 'station24_branches_v2') BRANCHES = value;
   else if (key === 'station24_daily_v1') DAILY = value;
   else if (key === 'station24_sales_log_v1') LOG = value;
-  else if (key === 'station24_chart_colors_v1') CHART_COLORS = value;
+  else if (key === 'station24_chart_colors_v2') CHART_COLORS = value;
   else if (key === 'station24_branch_colors_v1') BRANCH_COLORS = value;
   else if (key === 'station24_positions_v1') POSITIONS = value;
   else if (key === 'station24_users_v1') {
@@ -2929,7 +2916,7 @@ async function bootstrapSupabase() {
         { key: 'station24_branches_v2', value: BRANCHES, updated_at: new Date().toISOString() },
         { key: 'station24_daily_v1', value: DAILY, updated_at: new Date().toISOString() },
         { key: 'station24_sales_log_v1', value: LOG, updated_at: new Date().toISOString() },
-        { key: 'station24_chart_colors_v1', value: CHART_COLORS, updated_at: new Date().toISOString() },
+        { key: 'station24_chart_colors_v2', value: CHART_COLORS, updated_at: new Date().toISOString() },
         { key: 'station24_branch_colors_v1', value: BRANCH_COLORS, updated_at: new Date().toISOString() },
         { key: 'station24_users_v1', value: USERS, updated_at: new Date().toISOString() },
         { key: 'station24_positions_v1', value: POSITIONS, updated_at: new Date().toISOString() }
