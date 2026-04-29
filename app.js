@@ -73,7 +73,7 @@ const THREE_BRANCH_TEAMS = [
 //   a = ศรีนครินทร์ (THREE_BRANCH_TEAMS[0])
 //   b = ศรีราชา     (THREE_BRANCH_TEAMS[1])
 //   c = ศรีสมาน    (THREE_BRANCH_TEAMS[2])
-const PLAN_BAR_COLOR = '#D97706';
+const PLAN_BAR_COLOR = '#9CA3AF';
 const DEFAULT_CHART_COLORS = { a: '#F59E0B', b: '#2563EB', c: '#16A34A' };
 const CHART_COLOR_PRESETS = [
   { id: 'default', name: 'มาตรฐาน (เหลือง-น้ำเงิน-เขียว)', a: '#F59E0B', b: '#2563EB', c: '#16A34A' },
