@@ -387,9 +387,33 @@
   </div>
 </div>
 
+<!-- ====== Year Override Edit Modal ====== -->
+<div class="modal-backdrop" id="yearOverrideModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h3>✎ แก้ไขข้อมูลในหน้านี้</h3><div class="modal-subtitle" id="yoSubtitle">—</div></div>
+      <button class="modal-close" id="yoClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11px;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-weight:600">⚠ การแก้ไขที่นี่ไม่กระทบข้อมูลพนักงานหรือยอดขายในหน้าอื่น</div>
+      <form id="yearOverrideForm">
+        <div class="form-field"><label>👤 ชื่อ</label><input type="text" id="yoName"></div>
+        <div class="form-field" style="margin-top:10px"><label>🏢 สาขา</label><select id="yoBranch"></select></div>
+        <div class="form-field" style="margin-top:10px"><label>🏷 ตำแหน่ง</label><select id="yoPosition"></select></div>
+        <div class="form-field" style="margin-top:10px"><label>💰 ยอดรวม PT + MEMBER (บาท)</label><input type="number" id="yoSales" min="0" step="1"></div>
+        <div class="form-field" style="margin-top:10px"><label>🏋 จำนวนเทรน (ครั้ง)</label><input type="number" id="yoTrain" min="0" step="1"></div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button type="submit" class="btn btn-primary" style="flex:1">💾 บันทึก</button>
+          <button type="button" id="yoReset" style="padding:11px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;color:var(--gray-text)">↺ ใช้ค่าเดิม</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
-<script src="app.js?v=20260430f"></script>
+<script src="app.js?v=20260430g"></script>
 </body>
 </html>

@@ -46,6 +46,7 @@ const STORAGE_USERS = 'station24_users_v1';
 const STORAGE_SESSION = 'station24_session_v1';
 const STORAGE_VIEW = 'station24_last_view_v1';
 const STORAGE_POSITIONS = 'station24_positions_v1';
+const STORAGE_YEAR_OVERRIDES = 'station24_year_overrides_v1';
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
 const KPI_LINES = [
@@ -94,6 +95,7 @@ const SYNC_KEYS = [
   'station24_daily_v1',
   'station24_sales_log_v1',
   'station24_chart_colors_v2',
+  'station24_year_overrides_v1',
   'station24_branch_colors_v1',
   'station24_users_v1',
   'station24_positions_v1'
@@ -1379,6 +1381,10 @@ document.getElementById('dailyModal')?.addEventListener('click', e => { if (e.ta
 document.getElementById('dailyForm')?.addEventListener('submit', e => { e.preventDefault(); saveDailyEntry(); });
 document.getElementById('dailyDate')?.addEventListener('change', () => { if (activeDailyEmp) loadDailyIntoForm(activeDailyEmp, document.getElementById('dailyDate').value); });
 ['dailyPT','dailyMember','dailyPlan'].forEach(id => document.getElementById(id).addEventListener('input', updateDailyPreview));
+document.getElementById('yoClose')?.addEventListener('click', closeYearOverrideModal);
+document.getElementById('yearOverrideModal')?.addEventListener('click', e => { if (e.target.id === 'yearOverrideModal') closeYearOverrideModal(); });
+document.getElementById('yearOverrideForm')?.addEventListener('submit', e => { e.preventDefault(); saveYearOverrideFromForm(); });
+document.getElementById('yoReset')?.addEventListener('click', resetYearOverride);
 document.getElementById('editEmpClose')?.addEventListener('click', closeEditEmpModal);
 document.getElementById('editEmpModal')?.addEventListener('click', e => { if (e.target.id === 'editEmpModal') closeEditEmpModal(); });
 document.getElementById('editEmpForm')?.addEventListener('submit', e => { e.preventDefault(); saveEditEmp(); });
@@ -2214,6 +2220,28 @@ function thaiDate(s) {
 // User-selected date ranges for year views (start as the rolling 12-month default)
 let ysRange = oneYearRangeBKK();
 let ytRange = oneYearRangeBKK();
+
+// Per-employee overrides used ONLY by the year sales/train views.
+// Shape: YEAR_OVERRIDES[empId] = { name, branchId, position, sales, train }
+// Any field that's missing falls back to the underlying employee record /
+// DAILY-computed total. Editing here does not touch the global BRANCHES,
+// employee records, or DAILY data — other views are completely unaffected.
+let YEAR_OVERRIDES = loadJSON(STORAGE_YEAR_OVERRIDES, {});
+function saveYearOverrides() { saveJSON(STORAGE_YEAR_OVERRIDES, YEAR_OVERRIDES); }
+function effectiveEmpDisplay(emp, branch) {
+  const o = YEAR_OVERRIDES[emp.id] || {};
+  const b = (o.branchId && getBranch(o.branchId)) || branch;
+  return {
+    id: emp.id,
+    name: o.name || emp.name,
+    position: o.position || emp.position || 'Sale',
+    photo: emp.photo,
+    branch: b,
+    salesOverride: typeof o.sales === 'number' ? o.sales : null,
+    trainOverride: typeof o.train === 'number' ? o.train : null,
+    hasOverride: !!Object.keys(o).length
+  };
+}
 // Ranking views — default to all-time so existing behaviour is preserved
 let rkRange  = { from: '', to: '' };
 let rktRange = { from: '', to: '' };
@@ -2278,6 +2306,61 @@ function dateMinusMonthsBKK(months) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
   return y + '-' + m + '-' + day;
 }
+// === Year override edit modal ===
+let yoActiveEmpId = null;
+let yoActiveBranchId = null;
+function openYearOverrideModal(empId, branchId) {
+  const emp = empById(empId);
+  if (!emp) { showToast('⚠ ไม่พบพนักงาน', true); return; }
+  const branch = getBranch(branchId) || (function(){ for (const b of BRANCHES) if (b.employees.indexOf(emp) >= 0) return b; return null; })();
+  if (!branch) { showToast('⚠ ไม่พบสาขาของพนักงาน', true); return; }
+  yoActiveEmpId = empId;
+  yoActiveBranchId = branch.id;
+  const o = YEAR_OVERRIDES[empId] || {};
+  // Compute current "displayed" totals so the user starts from the values they see
+  const sumPTMEM = (function(){ const t = empTotalsInRange(branch.id, empId, ysRange); return t.pt + t.member; })();
+  const sumTrain = (function(){ const t = empTotalsInRange(branch.id, empId, ytRange); return t.train; })();
+  document.getElementById('yoSubtitle').textContent = (o.name || emp.name) + ' · ' + emp.id;
+  document.getElementById('yoName').value = o.name || emp.name;
+  // Branch select
+  const bSel = document.getElementById('yoBranch');
+  bSel.innerHTML = BRANCHES.map(b => '<option value="' + b.id + '"' + (b.id === (o.branchId || branch.id) ? ' selected' : '') + '>' + b.emoji + ' สาขา' + b.name + '</option>').join('');
+  // Position select
+  const pSel = document.getElementById('yoPosition');
+  pSel.innerHTML = posOptionsHTML(o.position || emp.position || 'Sale', false);
+  // Total inputs
+  document.getElementById('yoSales').value = typeof o.sales === 'number' ? o.sales : sumPTMEM;
+  document.getElementById('yoTrain').value = typeof o.train === 'number' ? o.train : sumTrain;
+  document.getElementById('yearOverrideModal').classList.add('show');
+}
+function closeYearOverrideModal() {
+  document.getElementById('yearOverrideModal').classList.remove('show');
+  yoActiveEmpId = null; yoActiveBranchId = null;
+}
+function saveYearOverrideFromForm() {
+  if (!yoActiveEmpId) return;
+  const name = (document.getElementById('yoName').value || '').trim();
+  const branchId = document.getElementById('yoBranch').value;
+  const position = document.getElementById('yoPosition').value;
+  const sales = +document.getElementById('yoSales').value || 0;
+  const train = +document.getElementById('yoTrain').value || 0;
+  YEAR_OVERRIDES[yoActiveEmpId] = { name: name, branchId: branchId, position: position, sales: sales, train: train };
+  saveYearOverrides();
+  showToast('✓ บันทึก ' + name);
+  closeYearOverrideModal();
+  if (currentView === 'yearsales') renderYearSalesView();
+  else if (currentView === 'yeartrain') renderYearTrainView();
+}
+function resetYearOverride() {
+  if (!yoActiveEmpId) return;
+  delete YEAR_OVERRIDES[yoActiveEmpId];
+  saveYearOverrides();
+  showToast('↺ คืนค่าเดิม');
+  closeYearOverrideModal();
+  if (currentView === 'yearsales') renderYearSalesView();
+  else if (currentView === 'yeartrain') renderYearTrainView();
+}
+
 function presetRange(id) {
   const today = todayBKK();
   if (id === '12m') return { from: dateMinusMonthsBKK(12), to: today };
@@ -2367,10 +2450,12 @@ function renderYearSalesView() {
     '</div>' +
     '</div>';
 
-  // Combined Top 5 across all branches (employees with PT+MEM > 0)
+  // Combined Top 5 across all branches — apply per-employee overrides for this view
   const allEmps = [];
   branchTotals.forEach(b => b.emps.forEach(e => {
-    if (e.total > 0) allEmps.push({ ...e, branch: b.branch });
+    const eff = effectiveEmpDisplay(e.emp, b.branch);
+    const total = eff.salesOverride !== null ? eff.salesOverride : e.total;
+    if (total > 0) allEmps.push({ emp: eff, branch: eff.branch, pt: e.pt, member: e.member, days: e.days, total: total, isOverride: eff.salesOverride !== null });
   }));
   allEmps.sort((a, b) => b.total - a.total);
   const top5 = allEmps.slice(0, 5);
@@ -2388,11 +2473,15 @@ function renderYearSalesView() {
           const av = e.emp.photo
             ? '<img src="' + e.emp.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + accent + '">'
             : '<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(e.emp.id) + ';flex-shrink:0;border:2px solid ' + accent + '">' + avatarInitials(e.emp.name) + '</div>';
+          const meta = e.isOverride
+            ? '· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.emp.position + ' · <span style="color:#92400E;font-weight:700">📝 แก้ไขเอง</span>'
+            : '· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.emp.position + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน';
           return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#F0FDF4' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
             '<span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '22px' : '14px') + ';font-weight:800;color:' + accent + ';text-align:center;flex-shrink:0">' + medal + '</span>' +
             av +
-            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + (e.emp.position || 'Sale') + ' · PT ฿' + fmt0(e.pt) + ' · MEM ฿' + fmt0(e.member) + ' · ' + e.days + ' วัน</span></div>' +
+            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">' + meta + '</span></div>' +
             '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">฿' + fmt0(e.total) + '</div>' +
+            '<button type="button" class="ys-edit-yo no-capture" data-eid="' + e.emp.id + '" data-bid="' + e.branch.id + '" title="แก้ไขข้อมูลในหน้านี้" style="padding:6px 10px;border:1px solid ' + accent + ';background:#fff;color:' + accent + ';border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">✎</button>' +
             '</div>';
         }).join('') +
         '</div>'
@@ -2402,6 +2491,9 @@ function renderYearSalesView() {
   const container = document.getElementById('yearSalesContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
+  container.querySelectorAll('.ys-edit-yo').forEach(btn => {
+    btn.onclick = () => openYearOverrideModal(btn.dataset.eid, btn.dataset.bid);
+  });
   const fromIn = document.getElementById('ysFrom');
   const toIn   = document.getElementById('ysTo');
   const preset = document.getElementById('ysPreset');
@@ -2475,8 +2567,14 @@ function renderYearTrainView() {
     '</div>' +
     '</div>';
 
-  // Combined Top 5 trainers across all branches (train > 0)
-  const top5 = allRows.filter(r => r.train > 0).slice(0, 5);
+  // Combined Top 5 trainers across all branches — apply per-employee overrides
+  const overlaid = allRows.map(r => {
+    const eff = effectiveEmpDisplay(r.emp, r.branch);
+    const trainVal = eff.trainOverride !== null ? eff.trainOverride : r.train;
+    return { emp: eff, branch: eff.branch, train: trainVal, days: r.days, isOverride: eff.trainOverride !== null };
+  });
+  overlaid.sort((a, b) => b.train - a.train);
+  const top5 = overlaid.filter(r => r.train > 0).slice(0, 5);
 
   html += '<div class="card" style="margin-bottom:16px">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid var(--red)">' +
@@ -2491,11 +2589,15 @@ function renderYearTrainView() {
           const av = e.emp.photo
             ? '<img src="' + e.emp.photo + '" alt="" style="width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + accent + '">'
             : '<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(e.emp.id) + ';flex-shrink:0;border:2px solid ' + accent + '">' + avatarInitials(e.emp.name) + '</div>';
+          const meta = e.isOverride
+            ? '· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.emp.position + ' · <span style="color:#92400E;font-weight:700">📝 แก้ไขเอง</span>'
+            : '· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.emp.position + ' · ' + e.days + ' วันที่บันทึก';
           return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:' + (i < 3 ? '#F0FDF4' : '#FAFAFA') + ';border-radius:10px;border-left:4px solid ' + accent + '">' +
             '<span style="display:inline-block;width:34px;font-size:' + (i < 3 ? '22px' : '14px') + ';font-weight:800;color:' + accent + ';text-align:center;flex-shrink:0">' + medal + '</span>' +
             av +
-            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">· ' + e.branch.emoji + ' ' + e.branch.name + ' · ' + e.days + ' วันที่บันทึก</span></div>' +
+            '<div style="flex:1;min-width:0;font-size:14px;font-weight:700">' + e.emp.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:500">' + meta + '</span></div>' +
             '<div style="font-size:15px;font-weight:900;color:' + accent + ';white-space:nowrap">🏋 ' + fmtInt(e.train) + ' ครั้ง</div>' +
+            '<button type="button" class="yt-edit-yo no-capture" data-eid="' + e.emp.id + '" data-bid="' + e.branch.id + '" title="แก้ไขข้อมูลในหน้านี้" style="padding:6px 10px;border:1px solid ' + accent + ';background:#fff;color:' + accent + ';border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">✎</button>' +
             '</div>';
         }).join('') +
         '</div>'
@@ -2505,6 +2607,9 @@ function renderYearTrainView() {
   const container = document.getElementById('yearTrainContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
+  container.querySelectorAll('.yt-edit-yo').forEach(btn => {
+    btn.onclick = () => openYearOverrideModal(btn.dataset.eid, btn.dataset.bid);
+  });
   const fromIn = document.getElementById('ytFrom');
   const toIn   = document.getElementById('ytTo');
   const preset = document.getElementById('ytPreset');
@@ -3304,6 +3409,7 @@ function applyKeyToGlobals(key, value) {
   else if (key === 'station24_daily_v1') DAILY = value;
   else if (key === 'station24_sales_log_v1') LOG = value;
   else if (key === 'station24_chart_colors_v2') CHART_COLORS = value;
+  else if (key === 'station24_year_overrides_v1') YEAR_OVERRIDES = value || {};
   else if (key === 'station24_branch_colors_v1') BRANCH_COLORS = value;
   else if (key === 'station24_positions_v1') POSITIONS = value;
   else if (key === 'station24_users_v1') {
@@ -3342,6 +3448,7 @@ async function bootstrapSupabase() {
         { key: 'station24_daily_v1', value: DAILY, updated_at: new Date().toISOString() },
         { key: 'station24_sales_log_v1', value: LOG, updated_at: new Date().toISOString() },
         { key: 'station24_chart_colors_v2', value: CHART_COLORS, updated_at: new Date().toISOString() },
+        { key: 'station24_year_overrides_v1', value: YEAR_OVERRIDES, updated_at: new Date().toISOString() },
         { key: 'station24_branch_colors_v1', value: BRANCH_COLORS, updated_at: new Date().toISOString() },
         { key: 'station24_users_v1', value: USERS, updated_at: new Date().toISOString() },
         { key: 'station24_positions_v1', value: POSITIONS, updated_at: new Date().toISOString() }
