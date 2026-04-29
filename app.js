@@ -1810,10 +1810,10 @@ function renderSummaryChartView() {
       '</div></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' +
       '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px">' +
-      '<div style="font-size:11px;font-weight:700;color:#92400E">🅰 ทีม A · ' + empsA.length + ' คน</div>' +
+      '<div style="font-size:11px;font-weight:700;color:#92400E">A · ' + empsA.length + ' คน</div>' +
       '<div style="font-size:18px;font-weight:800;color:#92400E;margin-top:2px">฿' + fmt0(totA) + '</div></div>' +
       '<div style="flex:1;min-width:180px;padding:10px 14px;background:#DBEAFE;border-left:4px solid #2563EB;border-radius:8px">' +
-      '<div style="font-size:11px;font-weight:700;color:#1E40AF">🅱 ทีม B · ' + empsB.length + ' คน</div>' +
+      '<div style="font-size:11px;font-weight:700;color:#1E40AF">B · ' + empsB.length + ' คน</div>' +
       '<div style="font-size:18px;font-weight:800;color:#1E40AF;margin-top:2px">฿' + fmt0(totB) + '</div></div>' +
       '<div style="flex:1;min-width:180px;padding:10px 14px;background:#FEE2E2;border-left:4px solid #DC2626;border-radius:8px">' +
       '<div style="font-size:11px;font-weight:700;color:#991B1B">💰 รวมทั้งสาขา</div>' +
@@ -1911,7 +1911,7 @@ function renderSummaryChartView() {
         const aMid = (chartArea.left + (cnt < tot
           ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
           : chartArea.right)) / 2;
-        ctx.fillText('🅰 ทีม A', aMid, chartArea.top + 2);
+        ctx.fillText('A', aMid, chartArea.top + 2);
       }
       if (cnt < tot) {
         ctx.fillStyle = '#1E40AF';
@@ -1919,7 +1919,7 @@ function renderSummaryChartView() {
           ? (xScale.getPixelForValue(cnt - 1) + xScale.getPixelForValue(cnt)) / 2
           : chartArea.left;
         const bMid = (bLeft + chartArea.right) / 2;
-        ctx.fillText('🅱 ทีม B', bMid, chartArea.top + 2);
+        ctx.fillText('B', bMid, chartArea.top + 2);
       }
       ctx.restore();
     }
@@ -2001,7 +2001,7 @@ function renderSummaryChartView() {
             title: items => {
               if (!items.length) return '';
               const i = items[0].dataIndex;
-              return all[i].emp.name + ' · ทีม ' + all[i].team;
+              return all[i].emp.name + ' · ' + all[i].team;
             },
             label: c => c.dataset.label + ': ฿' + fmt0(c.raw)
           } },
@@ -2266,9 +2266,9 @@ function saveBranchChart(branchId, fmt, silent) {
 
   ctx.fillStyle = '#92400E';
   ctx.font = 'bold 14px "Segoe UI", "Noto Sans Thai", Arial, sans-serif';
-  ctx.fillText('🅰 ทีม A: ฿' + fmt0(totA), pad, 82);
+  ctx.fillText('A: ฿' + fmt0(totA), pad, 82);
   ctx.fillStyle = '#1E40AF';
-  ctx.fillText('🅱 ทีม B: ฿' + fmt0(totB), pad + 200, 82);
+  ctx.fillText('B: ฿' + fmt0(totB), pad + 200, 82);
   ctx.fillStyle = '#991B1B';
   ctx.fillText('💰 รวม: ฿' + fmt0(totA + totB), pad + 400, 82);
 
