@@ -1231,7 +1231,17 @@ function openDailyModal(empId) {
   loadDailyIntoForm(empId, today); renderDailyHistory(empId);
   document.getElementById('dailyModal').classList.add('show');
 }
-function closeDailyModal() { document.getElementById('dailyModal').classList.remove('show'); activeDailyEmp = null; }
+function closeDailyModal() {
+  document.getElementById('dailyModal').classList.remove('show'); activeDailyEmp = null;
+  // If the modal was opened from a view that swapped activeBranch, restore it
+  // and re-sync the sidebar so the active-branch highlight matches reality
+  if (dailyModalReturnBranch !== null) {
+    activeBranch = dailyModalReturnBranch;
+    dailyModalReturnBranch = null;
+    if (typeof renderSidebar === 'function') renderSidebar();
+  }
+}
+let dailyModalReturnBranch = null;
 function loadDailyIntoForm(empId, date) {
   const entry = DAILY[activeBranch] && DAILY[activeBranch][empId] && DAILY[activeBranch][empId][date];
   if(document.getElementById('dailyPT'))document.getElementById('dailyPT').value = entry ? (entry.pt||'') : '';
@@ -2352,6 +2362,9 @@ function renderYearSalesView() {
   bindViewExportButtons(container);
   container.querySelectorAll('.ys-edit-btn').forEach(btn => {
     btn.onclick = () => {
+      // Swap activeBranch only for the duration of the modal so other views
+      // (branch view, sidebar) keep their original active branch on return
+      dailyModalReturnBranch = activeBranch;
       activeBranch = btn.dataset.bid;
       openDailyModal(btn.dataset.eid);
     };
