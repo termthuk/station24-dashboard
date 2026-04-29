@@ -2033,6 +2033,7 @@ function renderSummaryChartView() {
     btn.onclick = () => {
       const fmt = btn.dataset.fmt;
       let saved = 0;
+      if (saveThreeBranchChart(fmt, true)) saved++;
       BRANCHES.forEach(br => { if (saveBranchChart(br.id, fmt, true)) saved++; });
       showToast(saved ? '✓ ดาวน์โหลด ' + saved + ' ไฟล์ .' + fmt : '⚠ ไม่มีกราฟ', !saved);
     };
@@ -2295,10 +2296,10 @@ function saveBranchChart(branchId, fmt, silent) {
 }
 
 // ===== saveThreeBranchChart (combined 3-branch comparison) =====
-function saveThreeBranchChart(fmt) {
+function saveThreeBranchChart(fmt, silent) {
   const chart = scBranchCharts['three_combined'];
   const src = chart && chart.canvas && chart.canvas.width ? chart.canvas : null;
-  if (!src) { showToast('⚠ ไม่มีกราฟ', true); return false; }
+  if (!src) { if (!silent) showToast('⚠ ไม่มีกราฟ', true); return false; }
 
   const totals = THREE_BRANCH_TEAMS.map(t => {
     const br = getBranch(t.id);
@@ -2356,7 +2357,7 @@ function saveThreeBranchChart(fmt) {
   a.href = dataURL;
   a.download = 'Station24_Chart_3สาขา_' + todayBKK() + '.' + ext;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  showToast('✓ ดาวน์โหลด 3สาขา.' + ext);
+  if (!silent) showToast('✓ ดาวน์โหลด 3สาขา.' + ext);
   return true;
 }
 
