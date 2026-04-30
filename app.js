@@ -366,7 +366,7 @@ const AVATAR_COLORS = [
   'linear-gradient(135deg,#EF4444,#DC2626)',
 ];
 
-const fmt0 = n => new Intl.NumberFormat('th-TH').format(Math.round(n || 0));
+const fmt0 = n => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(+n || 0);
 const fmtInt = n => new Intl.NumberFormat('th-TH').format(n || 0);
 const fmtShort = n => { n = +n || 0; if (n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if (n >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'')+'K'; return n.toLocaleString('th-TH'); };
 
@@ -795,9 +795,9 @@ function renderBranchInline() {
         ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '" data-ispt="' + (isPT ? '1' : '0') + '">' +
             '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
             quotaBadge + todayBadge + trainBadge +
-            '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0"></div>' +
-            '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0"></div>' +
-            '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0"></div>' +
+            '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01"></div>' +
+            '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01"></div>' +
+            '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01"></div>' +
             trainInputRow +
             '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
           '</div>'
@@ -1830,9 +1830,9 @@ function renderAddSalesView() {
           '<div class="inline-date-row">' +
           '<label>📅</label><input type="date" class="inline-date" value="' + today + '">' +
           '</div>' +
-          '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
-          '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
-          '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.pt||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.member||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.plan||'') + '"></div>' +
           '<button type="button" class="emp-card-btn primary inline-save-btn">💾 บันทึกยอดวันนี้</button>' +
           '<button type="button" class="emp-card-btn" style="margin-top:4px;background:transparent;color:var(--red-dark);border:1px solid var(--gray-line)" data-open-modal="' + br.id + '|' + e.id + '">📋 ดูประวัติ / แก้ไขวันอื่น</button>' +
           '</div></div>';
@@ -2772,9 +2772,9 @@ function renderRecordSalesView() {
           '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
           '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
           '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
-          '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0" min="0" value="' + (todayEntry.pt||'') + '"></div>' +
-          '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0" min="0" value="' + (todayEntry.member||'') + '"></div>' +
-          '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0" min="0" value="' + (todayEntry.plan||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.pt||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.member||'') + '"></div>' +
+          '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.plan||'') + '"></div>' +
           '<button type="button" class="emp-card-btn inline-save-btn">💾 บันทึกยอดวันนี้</button></div></div>';
       }).join('') +
       '</div></div>';
