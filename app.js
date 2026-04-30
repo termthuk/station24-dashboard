@@ -48,6 +48,7 @@ const STORAGE_VIEW = 'station24_last_view_v1';
 const STORAGE_POSITIONS = 'station24_positions_v1';
 const STORAGE_YEAR_OVERRIDES = 'station24_year_overrides_v1';
 const STORAGE_LAST_BACKUP = 'station24_last_backup_v1';
+const STORAGE_AD_EXPENSES = 'station24_ad_expenses_v1';
 const BACKUP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const BACKUP_KEYS = [
   'station24_branches_v2',
@@ -57,7 +58,8 @@ const BACKUP_KEYS = [
   'station24_branch_colors_v1',
   'station24_users_v1',
   'station24_positions_v1',
-  'station24_year_overrides_v1'
+  'station24_year_overrides_v1',
+  'station24_ad_expenses_v1'
 ];
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
@@ -110,7 +112,8 @@ const SYNC_KEYS = [
   'station24_year_overrides_v1',
   'station24_branch_colors_v1',
   'station24_users_v1',
-  'station24_positions_v1'
+  'station24_positions_v1',
+  'station24_ad_expenses_v1'
 ];
 let supabaseClient = null;
 let _suppressSync = false;
@@ -154,6 +157,7 @@ function flushPush() {
 function saveBranches() { saveJSON(STORAGE_BRANCHES, BRANCHES); }
 function saveDaily()    { saveJSON(STORAGE_DAILY, DAILY); }
 function saveLog()      { saveJSON(STORAGE_LOG, LOG); }
+function saveAdExpenses(){ saveJSON(STORAGE_AD_EXPENSES, AD_EXPENSES); }
 
 function buildBackupPayload() {
   const out = { _version: 1, _exportedAt: new Date().toISOString(), data: {} };
@@ -226,6 +230,7 @@ function logSale(bid, eid, date, pt, m, pl, train) {
 let BRANCHES = loadJSON(STORAGE_BRANCHES, DEFAULT_BRANCHES);
 let DAILY    = loadJSON(STORAGE_DAILY, SEED_DAILY);
 let LOG      = loadJSON(STORAGE_LOG, []);
+let AD_EXPENSES = loadJSON(STORAGE_AD_EXPENSES, []);
 // One-time backfill: reconstruct LOG entries from any pre-existing DAILY data
 if (LOG.length === 0) {
   for (const bid in DAILY) {
@@ -461,6 +466,7 @@ function setView(v) {
   if(document.getElementById('rankingAllView'))document.getElementById('rankingAllView').style.display = v === 'rankingall' ? 'block' : 'none';
   if(document.getElementById('rankingTrainerView'))document.getElementById('rankingTrainerView').style.display = v === 'rankingtrainer' ? 'block' : 'none';
   if(document.getElementById('usersView'))document.getElementById('usersView').style.display = v === 'users' ? 'block' : 'none';
+  if(document.getElementById('adExpensesView'))document.getElementById('adExpensesView').style.display = v === 'adexpenses' ? 'block' : 'none';
   if(document.getElementById('branchListSection'))document.getElementById('branchListSection').style.display = 'block';
   // Editors are restricted to their branch view only
   if (isEditor() && v !== 'branch') {
@@ -468,12 +474,14 @@ function setView(v) {
     v = 'branch';
     currentView = v;
     if(document.getElementById('branchView'))document.getElementById('branchView').style.display = 'block';
-    ['overviewView','recordSalesView','summaryChartView','yearSalesView','yearTrainView','historyView','rankingView','rankingAllView','rankingTrainerView','usersView'].forEach(id => {
+    ['overviewView','recordSalesView','summaryChartView','yearSalesView','yearTrainView','historyView','rankingView','rankingAllView','rankingTrainerView','usersView','adExpensesView'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
   }
   // Non-admin trying to access users view → redirect to overview
   if (v === 'users' && !isAdmin()) { setView('overview'); return; }
+  // Non-admin trying to access ad expenses view → redirect to overview
+  if (v === 'adexpenses' && !isAdmin()) { setView('overview'); return; }
   try { localStorage.setItem(STORAGE_VIEW, JSON.stringify({ view: v, branchId: activeBranch })); } catch(e){}
   renderMenuNav();
   if (v === 'branch') renderBranchView();
@@ -487,6 +495,7 @@ function setView(v) {
   else if (v === 'rankingall') renderRankingAllView();
   else if (v === 'rankingtrainer') renderRankingTrainerView();
   else if (v === 'users') renderUsersView();
+  else if (v === 'adexpenses') renderAdExpensesView();
 }
 
 function renderMenuNav() {
@@ -508,6 +517,7 @@ function renderMenuNav() {
     '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติการขาย</span></button>';
   if (isAdmin()) {
+    html += '<button class="menu-item ' + (currentView==='adexpenses'?'active':'') + '" data-view="adexpenses"><span class="menu-item-icon">📣</span><span>ค่าใช้จ่ายโฆษณา</span></button>';
     html += '<button class="menu-item ' + (currentView==='users'?'active':'') + '" data-view="users"><span class="menu-item-icon">👥</span><span>จัดการผู้ใช้/สาขา</span></button>';
   }
   nav.innerHTML = html;
@@ -3571,6 +3581,7 @@ function applyKeyToGlobals(key, value) {
     USERS = value;
     if (!USERS.some(u => u.role === 'admin')) USERS.unshift(DEFAULT_USERS[0]);
   }
+  else if (key === 'station24_ad_expenses_v1') AD_EXPENSES = value || [];
 }
 function reRenderCurrentView() {
   try {
@@ -3584,7 +3595,186 @@ function reRenderCurrentView() {
     else if (currentView === 'history' && typeof renderHistoryView === 'function') renderHistoryView();
     else if (currentView === 'addsales' && typeof renderAddSalesView === 'function') renderAddSalesView();
     else if (currentView === 'users' && typeof renderUsersView === 'function') renderUsersView();
+    else if (currentView === 'adexpenses' && typeof renderAdExpensesView === 'function') renderAdExpensesView();
   } catch(e) { console.warn('re-render fail:', e); }
+}
+
+// ====== AD EXPENSES VIEW ======
+const AD_CHANNELS = ['Facebook', 'Google', 'TikTok', 'Instagram', 'LINE', 'อื่นๆ'];
+let _adExpFilter = { branch: '', month: '', channel: '' };
+
+function newAdExpId() {
+  let max = 0;
+  AD_EXPENSES.forEach(x => { const n = +String(x.id || '').replace(/^AD-/, '') || 0; if (n > max) max = n; });
+  return 'AD-' + String(max + 1).padStart(5, '0');
+}
+
+function renderAdExpensesView() {
+  if (!isAdmin()) { setView('overview'); return; }
+  renderSidebar();
+  const c = document.getElementById('adExpensesContainer');
+  if (!c) return;
+
+  const branchOpts = '<option value="">🏢 ทุกสาขา</option>' +
+    BRANCHES.map(b => '<option value="' + b.id + '"' + (_adExpFilter.branch === b.id ? ' selected' : '') + '>' + b.emoji + ' สาขา' + b.name + '</option>').join('');
+  const channelOpts = '<option value="">📣 ทุกช่องทาง</option>' +
+    AD_CHANNELS.map(ch => '<option value="' + ch + '"' + (_adExpFilter.channel === ch ? ' selected' : '') + '>' + ch + '</option>').join('');
+  const today = new Date().toISOString().slice(0, 10);
+
+  const formBranchOpts = BRANCHES.map(b => '<option value="' + b.id + '">' + b.emoji + ' สาขา' + b.name + '</option>').join('');
+  const formChannelOpts = AD_CHANNELS.map(ch => '<option value="' + ch + '">' + ch + '</option>').join('');
+
+  // Apply filters
+  const filtered = AD_EXPENSES.filter(x => {
+    if (_adExpFilter.branch && x.branchId !== _adExpFilter.branch) return false;
+    if (_adExpFilter.month && (x.date || '').slice(0, 7) !== _adExpFilter.month) return false;
+    if (_adExpFilter.channel && x.channel !== _adExpFilter.channel) return false;
+    return true;
+  }).slice().sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  const totalAll = filtered.reduce((s, x) => s + (+x.amount || 0), 0);
+  const byBranch = {};
+  const byChannel = {};
+  filtered.forEach(x => {
+    byBranch[x.branchId] = (byBranch[x.branchId] || 0) + (+x.amount || 0);
+    byChannel[x.channel] = (byChannel[x.channel] || 0) + (+x.amount || 0);
+  });
+
+  const summaryHTML =
+    '<div class="kpi-grid" style="margin-bottom:14px">' +
+      '<div class="kpi-card pt"><div class="kpi-icon">📣</div><div class="kpi-label">รวมค่าโฆษณา</div><div class="kpi-value">฿' + fmt0(totalAll) + '</div><div class="kpi-sub">' + filtered.length + ' รายการ</div></div>' +
+      '<div class="kpi-card member"><div class="kpi-icon">🏢</div><div class="kpi-label">สาขาที่ใช้สูงสุด</div><div class="kpi-value" style="font-size:18px">' + (Object.keys(byBranch).length ? (function(){ const top = Object.entries(byBranch).sort((a,b)=>b[1]-a[1])[0]; const br = getBranch(top[0]); return (br ? br.emoji + ' ' + br.name : top[0]) + ' · ฿' + fmt0(top[1]); })() : '—') + '</div><div class="kpi-sub">ในช่วงที่กรอง</div></div>' +
+      '<div class="kpi-card plan"><div class="kpi-icon">📊</div><div class="kpi-label">ช่องทางสูงสุด</div><div class="kpi-value" style="font-size:18px">' + (Object.keys(byChannel).length ? (function(){ const top = Object.entries(byChannel).sort((a,b)=>b[1]-a[1])[0]; return top[0] + ' · ฿' + fmt0(top[1]); })() : '—') + '</div><div class="kpi-sub">ในช่วงที่กรอง</div></div>' +
+    '</div>';
+
+  const formHTML =
+    '<div class="card" style="margin-bottom:14px">' +
+      '<h3 style="margin:0 0 12px"><span>➕</span> เพิ่มรายการใหม่</h3>' +
+      '<div id="adExpForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end">' +
+        '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">📅 วันที่</label><input type="date" id="adExpDate" value="' + today + '" style="width:100%;padding:9px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px"></div>' +
+        '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">🏢 สาขา</label><select id="adExpBranch" style="width:100%;padding:9px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' + formBranchOpts + '</select></div>' +
+        '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">📣 ช่องทาง</label><select id="adExpChannel" style="width:100%;padding:9px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' + formChannelOpts + '</select></div>' +
+        '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">💰 จำนวนเงิน (บาท)</label><input type="number" id="adExpAmount" placeholder="0.00" min="0" step="0.01" style="width:100%;padding:9px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px"></div>' +
+        '<div style="grid-column:1/-1"><label style="font-size:11px;color:var(--gray-text);font-weight:700">📝 หมายเหตุ</label><input type="text" id="adExpNote" placeholder="แคมเปญ / รายละเอียด (ไม่บังคับ)" style="width:100%;padding:9px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px"></div>' +
+        '<div style="grid-column:1/-1"><button type="button" id="adExpAddBtn" style="padding:11px 18px;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;background:var(--red);color:#fff">💾 บันทึกรายการ</button></div>' +
+      '</div>' +
+    '</div>';
+
+  const filterHTML =
+    '<div class="card" style="margin-bottom:14px">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;justify-content:space-between">' +
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">' +
+          '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">🏢 สาขา</label><select id="adExpFltBranch" style="padding:8px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' + branchOpts + '</select></div>' +
+          '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">📅 เดือน</label><input type="month" id="adExpFltMonth" value="' + (_adExpFilter.month || '') + '" style="padding:8px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px"></div>' +
+          '<div><label style="font-size:11px;color:var(--gray-text);font-weight:700">📣 ช่องทาง</label><select id="adExpFltChannel" style="padding:8px 10px;border:1px solid var(--gray-line);border-radius:8px;font-family:inherit;font-size:13px;background:#fff">' + channelOpts + '</select></div>' +
+          '<button type="button" id="adExpFltClear" style="padding:8px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:var(--gray-text)">↺ ล้าง</button>' +
+        '</div>' +
+        '<button type="button" id="adExpExportBtn" style="padding:8px 14px;border:1px solid var(--red);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:var(--red-dark)">📥 ส่งออก CSV</button>' +
+      '</div>' +
+    '</div>';
+
+  const tableHTML = !filtered.length
+    ? '<div class="card"><div style="text-align:center;padding:48px;color:var(--gray-text)">📭 ไม่มีรายการในช่วงที่กรอง</div></div>'
+    : '<div class="card"><div class="history-table-wrap"><table class="history-table">' +
+        '<thead><tr>' +
+          '<th>วันที่</th><th>สาขา</th><th>ช่องทาง</th><th>หมายเหตุ</th><th class="num">💰 จำนวนเงิน</th><th></th>' +
+        '</tr></thead><tbody>' +
+        filtered.map(x => {
+          const br = getBranch(x.branchId);
+          const brLabel = br ? (br.emoji + ' ' + br.name) : x.branchId;
+          return '<tr>' +
+            '<td><strong>' + (x.date || '—') + '</strong></td>' +
+            '<td>' + brLabel + '</td>' +
+            '<td><span class="pos-chip">' + (x.channel || '—') + '</span></td>' +
+            '<td style="color:var(--gray-text)">' + (x.note ? escapeHTML(x.note) : '—') + '</td>' +
+            '<td class="num"><strong>฿' + fmt0(x.amount) + '</strong></td>' +
+            '<td><button class="ad-exp-del" data-id="' + x.id + '" title="ลบ" style="background:#FEE2E2;color:#991B1B;border:none;width:30px;height:30px;border-radius:6px;cursor:pointer">🗑</button></td>' +
+          '</tr>';
+        }).join('') +
+        '<tr style="background:#FAFAFA;font-weight:800">' +
+          '<td colspan="4" style="text-align:right">รวม</td>' +
+          '<td class="num">฿' + fmt0(totalAll) + '</td>' +
+          '<td></td>' +
+        '</tr>' +
+        '</tbody></table></div></div>';
+
+  c.innerHTML = summaryHTML + formHTML + filterHTML + tableHTML;
+
+  // Bind: add
+  const addBtn = document.getElementById('adExpAddBtn');
+  if (addBtn) addBtn.onclick = () => {
+    const date = document.getElementById('adExpDate').value;
+    const branchId = document.getElementById('adExpBranch').value;
+    const channel = document.getElementById('adExpChannel').value;
+    const amount = +document.getElementById('adExpAmount').value || 0;
+    const note = (document.getElementById('adExpNote').value || '').trim();
+    if (!date) { showToast('⚠ กรุณาเลือกวันที่', true); return; }
+    if (!branchId) { showToast('⚠ กรุณาเลือกสาขา', true); return; }
+    if (!channel) { showToast('⚠ กรุณาเลือกช่องทาง', true); return; }
+    if (!(amount > 0)) { showToast('⚠ จำนวนเงินต้องมากกว่า 0', true); return; }
+    AD_EXPENSES.push({
+      id: newAdExpId(),
+      date, branchId, channel, amount, note,
+      createdAt: new Date().toISOString(),
+      createdBy: (currentUser && currentUser.username) || ''
+    });
+    saveAdExpenses();
+    showToast('💾 บันทึกค่าโฆษณา ฿' + fmt0(amount));
+    renderAdExpensesView();
+  };
+
+  // Bind: filters
+  const fb = document.getElementById('adExpFltBranch');
+  const fm = document.getElementById('adExpFltMonth');
+  const fc = document.getElementById('adExpFltChannel');
+  const fclr = document.getElementById('adExpFltClear');
+  if (fb) fb.onchange = () => { _adExpFilter.branch = fb.value; renderAdExpensesView(); };
+  if (fm) fm.onchange = () => { _adExpFilter.month = fm.value; renderAdExpensesView(); };
+  if (fc) fc.onchange = () => { _adExpFilter.channel = fc.value; renderAdExpensesView(); };
+  if (fclr) fclr.onclick = () => { _adExpFilter = { branch: '', month: '', channel: '' }; renderAdExpensesView(); };
+
+  // Bind: delete
+  c.querySelectorAll('.ad-exp-del').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const item = AD_EXPENSES.find(x => x.id === id);
+      if (!item) return;
+      if (!confirm('ลบรายการค่าโฆษณานี้?\n' + item.date + ' · ' + item.channel + ' · ฿' + fmt0(item.amount))) return;
+      AD_EXPENSES = AD_EXPENSES.filter(x => x.id !== id);
+      saveAdExpenses();
+      showToast('🗑 ลบรายการแล้ว');
+      renderAdExpensesView();
+    };
+  });
+
+  // Bind: CSV export
+  const expBtn = document.getElementById('adExpExportBtn');
+  if (expBtn) expBtn.onclick = () => {
+    const rows = [['วันที่', 'สาขา', 'ช่องทาง', 'จำนวนเงิน', 'หมายเหตุ']];
+    filtered.forEach(x => {
+      const br = getBranch(x.branchId);
+      rows.push([x.date || '', br ? br.name : x.branchId, x.channel || '', (+x.amount || 0).toFixed(2), x.note || '']);
+    });
+    rows.push(['', '', 'รวม', totalAll.toFixed(2), '']);
+    const csv = rows.map(r => r.map(cell => {
+      const s = String(cell == null ? '' : cell);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Station24_ค่าโฆษณา_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    showToast('📥 ส่งออก CSV แล้ว');
+  };
+}
+
+function escapeHTML(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 async function bootstrapSupabase() {
   if (typeof supabase === 'undefined' || !supabase.createClient) {
