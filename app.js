@@ -3647,6 +3647,52 @@ function renderAdExpensesView() {
       '<div class="kpi-card plan"><div class="kpi-icon">📊</div><div class="kpi-label">ช่องทางสูงสุด</div><div class="kpi-value" style="font-size:18px">' + (Object.keys(byChannel).length ? (function(){ const top = Object.entries(byChannel).sort((a,b)=>b[1]-a[1])[0]; return top[0] + ' · ฿' + fmt0(top[1]); })() : '—') + '</div><div class="kpi-sub">ในช่วงที่กรอง</div></div>' +
     '</div>';
 
+  // Per-branch breakdown (Facebook / Google / Other / Total)
+  const branchBreak = {};
+  BRANCHES.forEach(b => { branchBreak[b.id] = { fb: 0, gg: 0, other: 0, total: 0 }; });
+  filtered.forEach(x => {
+    const slot = branchBreak[x.branchId];
+    if (!slot) return;
+    const amt = +x.amount || 0;
+    if (x.channel === 'Facebook') slot.fb += amt;
+    else if (x.channel === 'Google') slot.gg += amt;
+    else slot.other += amt;
+    slot.total += amt;
+  });
+  const branchesWithData = BRANCHES.filter(b => branchBreak[b.id].total > 0);
+  const branchBreakHTML = !branchesWithData.length
+    ? ''
+    : '<div class="card" style="margin-bottom:14px">' +
+        '<h3 style="margin:0 0 12px"><span>🏢</span> แยกตามสาขา · ตามช่องทาง</h3>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">' +
+          branchesWithData.map(b => {
+            const s = branchBreak[b.id];
+            const accent = (typeof branchColor === 'function') ? branchColor(b.id) : '#DC2626';
+            return '<div style="border:1px solid var(--gray-line);border-left:4px solid ' + accent + ';border-radius:10px;padding:12px 14px;background:#fff">' +
+              '<div style="font-weight:800;font-size:14px;color:var(--red-dark);margin-bottom:10px">' + b.emoji + ' สาขา' + b.name + '</div>' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#EFF6FF;border-radius:6px;margin-bottom:6px">' +
+                '<span style="font-size:12px;font-weight:700;color:#1E40AF">📘 Facebook</span>' +
+                '<span style="font-weight:800;color:#1E40AF">฿' + fmt0(s.fb) + '</span>' +
+              '</div>' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#FEF2F2;border-radius:6px;margin-bottom:6px">' +
+                '<span style="font-size:12px;font-weight:700;color:#991B1B">🔍 Google</span>' +
+                '<span style="font-weight:800;color:#991B1B">฿' + fmt0(s.gg) + '</span>' +
+              '</div>' +
+              (s.other > 0
+                ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#F3F4F6;border-radius:6px;margin-bottom:6px">' +
+                  '<span style="font-size:12px;font-weight:700;color:#4B5563">📣 อื่นๆ</span>' +
+                  '<span style="font-weight:800;color:#4B5563">฿' + fmt0(s.other) + '</span>' +
+                '</div>'
+                : '') +
+              '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#FAFAFA;border-top:1px dashed var(--gray-line);border-radius:6px;margin-top:8px">' +
+                '<span style="font-size:12px;font-weight:700;color:var(--gray-text)">รวม</span>' +
+                '<span style="font-weight:900;font-size:15px;color:var(--red-dark)">฿' + fmt0(s.total) + '</span>' +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+
   const formHTML =
     '<div class="card" style="margin-bottom:14px">' +
       '<h3 style="margin:0 0 12px"><span>➕</span> เพิ่มรายการใหม่</h3>' +
@@ -3698,7 +3744,7 @@ function renderAdExpensesView() {
         '</tr>' +
         '</tbody></table></div></div>';
 
-  c.innerHTML = summaryHTML + formHTML + filterHTML + tableHTML;
+  c.innerHTML = summaryHTML + branchBreakHTML + formHTML + filterHTML + tableHTML;
 
   // Bind: add
   const addBtn = document.getElementById('adExpAddBtn');
