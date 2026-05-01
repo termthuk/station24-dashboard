@@ -3184,10 +3184,19 @@ function renderEmpAnalysisView() {
   const trainerMonthly = Math.round(TRAIN_KPI / 12);
   const TRAINER_KPI_RANGE = isCurrentMonth ? Math.max(1, Math.round(trainerMonthly * cappedDays / 30)) : trainerMonthly;
 
+  // Pull only employees who actually have data in the selected month
   const all = branchesView.flatMap(br =>
     br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
       .map(e => ({ emp: e, branch: br, totals: empTotalsInRange(br.id, e.id, r) }))
+      .filter(x => {
+        const t = x.totals;
+        return t.days > 0 || t.train > 0 || (t.pt + t.member + t.plan) > 0;
+      })
   );
+  // Total roster size (for context — how many were excluded because no data)
+  const rosterCount = branchesView.reduce((s, br) =>
+    s + br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position)).length, 0);
+  const noDataCount = rosterCount - all.length;
 
   const analysis = all.map(x => {
     const t = x.totals;
@@ -3402,9 +3411,9 @@ function renderEmpAnalysisView() {
     '</div>' +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">' +
       '<div style="background:linear-gradient(135deg,' + (isTrainer?'#16A34A,#15803D':'#DC2626,#991B1B') + ');color:#fff;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;opacity:0.9">' + (isTrainer?'🏋 จำนวนเทรนเนอร์':'🧑‍💼 จำนวน Sale') + '</div>' +
-        '<div style="font-size:24px;font-weight:900;margin-top:2px">' + totalCount + ' <span style="font-size:13px;font-weight:700;opacity:0.9">คน</span></div>' +
-        '<div style="font-size:11px;opacity:0.85;margin-top:2px">ใน ' + branchesView.length + ' สาขา</div>' +
+        '<div style="font-size:11px;font-weight:700;opacity:0.9">' + (isTrainer?'🏋 เทรนเนอร์ที่มีข้อมูล':'🧑‍💼 Sale ที่มีข้อมูล') + '</div>' +
+        '<div style="font-size:24px;font-weight:900;margin-top:2px">' + totalCount + ' <span style="font-size:13px;font-weight:700;opacity:0.9">/ ' + rosterCount + ' คน</span></div>' +
+        '<div style="font-size:11px;opacity:0.85;margin-top:2px">' + branchesView.length + ' สาขา' + (noDataCount > 0 ? ' · ซ่อน ' + noDataCount + ' คนไม่มีข้อมูล' : '') + '</div>' +
       '</div>' +
       '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #16A34A;border-radius:12px;padding:14px 16px">' +
         '<div style="font-size:11px;font-weight:700;color:#166534">✅ ผ่าน KPI</div>' +
