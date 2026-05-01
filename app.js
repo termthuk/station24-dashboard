@@ -4213,6 +4213,135 @@ function hsExportExcel() {
 })();
 
 // ===== Users / Branches Management View (admin only) =====
+// ===== Scan/migrate entries with weird years (Buddhist year typo, etc.) =====
+function scanWeirdDateEntries() {
+  const today = todayBKK();
+  const ny = parseInt(today.slice(0, 4), 10);
+  const minYear = ny - 2;
+  const maxYear = ny + 1;
+  const findings = [];
+  for (const bid in DAILY) {
+    const branchEmps = DAILY[bid] || {};
+    for (const eid in branchEmps) {
+      const entries = branchEmps[eid] || {};
+      for (const date in entries) {
+        if (typeof date !== 'string' || date.length < 10) continue;
+        const dy = parseInt(date.slice(0, 4), 10);
+        if (!dy || dy < minYear || dy > maxYear) {
+          let suggested = null;
+          // BE → AD: 2569 → 2026
+          if (dy >= 2500 && dy <= 2700) {
+            suggested = String(dy - 543).padStart(4, '0') + date.slice(4);
+          }
+          findings.push({ bid: bid, eid: eid, date: date, entry: entries[date], suggested: suggested });
+        }
+      }
+    }
+  }
+  return findings;
+}
+function migrateWeirdDate(bid, eid, oldDate, newDate) {
+  if (!DAILY[bid] || !DAILY[bid][eid] || !DAILY[bid][eid][oldDate]) return false;
+  const oldEntry = DAILY[bid][eid][oldDate];
+  const existing = DAILY[bid][eid][newDate];
+  if (existing) {
+    // Merge: sum amounts to avoid losing existing data
+    DAILY[bid][eid][newDate] = {
+      pt: (+existing.pt || 0) + (+oldEntry.pt || 0),
+      member: (+existing.member || 0) + (+oldEntry.member || 0),
+      plan: (+existing.plan || 0) + (+oldEntry.plan || 0),
+      train: (+existing.train || 0) + (+oldEntry.train || 0)
+    };
+  } else {
+    DAILY[bid][eid][newDate] = oldEntry;
+  }
+  delete DAILY[bid][eid][oldDate];
+  return true;
+}
+function renderWeirdDateScan() {
+  const out = document.getElementById('weirdResults');
+  if (!out) return;
+  const findings = scanWeirdDateEntries();
+  if (!findings.length) {
+    out.innerHTML = '<div style="padding:14px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;font-size:13px;color:#166534;font-weight:700">✅ ไม่พบข้อมูลที่ปีผิด · ทุก entry อยู่ในช่วงปีที่สมเหตุสมผล</div>';
+    return;
+  }
+  // Sort by branch → emp → date
+  findings.sort((a, b) => (a.bid + a.eid + a.date).localeCompare(b.bid + b.eid + b.date));
+  const migratableCount = findings.filter(f => f.suggested).length;
+  let html = '<div style="padding:10px 12px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;margin-bottom:12px;font-size:13px;color:#991B1B;font-weight:700">' +
+    '🚨 พบ <strong>' + findings.length + ' รายการ</strong> ที่ปีผิด · ' +
+    '<span style="color:#166534">ย้ายอัตโนมัติได้ ' + migratableCount + ' รายการ</span></div>';
+  if (migratableCount > 0) {
+    html += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+      '<button type="button" id="weirdMigrateAll" style="padding:9px 16px;border:none;border-radius:8px;background:#16A34A;color:#fff;font-weight:700;cursor:pointer">✅ ย้ายทั้งหมด ' + migratableCount + ' รายการ</button>' +
+      '<button type="button" id="weirdDeleteAll" style="padding:9px 16px;border:1px solid #DC2626;background:#fff;color:#DC2626;border-radius:8px;font-weight:700;cursor:pointer">🗑 ลบทั้งหมด ' + findings.length + ' รายการ</button>' +
+    '</div>';
+  }
+  html += '<div style="overflow-x:auto"><table class="history-table" style="width:100%;font-size:12px">' +
+    '<thead><tr><th>สาขา</th><th>พนักงาน</th><th>วันที่ผิด</th><th>เปลี่ยนเป็น</th><th class="num">PT</th><th class="num">MEM</th><th class="num">PLAN</th><th class="num">เทรน</th><th></th></tr></thead><tbody>' +
+    findings.map((f, i) => {
+      const br = getBranch(f.bid);
+      const emp = empById(f.eid);
+      const e = f.entry || {};
+      return '<tr data-weird-row="' + i + '">' +
+        '<td>' + (br ? br.emoji + ' ' + br.name : f.bid) + '</td>' +
+        '<td>' + (emp ? emp.name : f.eid) + '</td>' +
+        '<td><strong style="color:#991B1B">' + f.date + '</strong></td>' +
+        '<td>' + (f.suggested ? '<strong style="color:#166534">→ ' + f.suggested + '</strong>' : '<span style="color:var(--gray-text)">— ไม่ทราบ —</span>') + '</td>' +
+        '<td class="num">฿' + fmt0(e.pt) + '</td>' +
+        '<td class="num">฿' + fmt0(e.member) + '</td>' +
+        '<td class="num">฿' + fmt0(e.plan) + '</td>' +
+        '<td class="num">' + fmtInt(e.train || 0) + '</td>' +
+        '<td style="white-space:nowrap">' +
+          (f.suggested ? '<button type="button" class="weird-mig-one" data-i="' + i + '" style="padding:5px 10px;border:none;border-radius:6px;background:#16A34A;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px">✅ ย้าย</button>' : '') +
+          '<button type="button" class="weird-del-one" data-i="' + i + '" style="padding:5px 10px;border:1px solid #DC2626;background:#fff;color:#DC2626;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">🗑 ลบ</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+  out.innerHTML = html;
+
+  out.querySelectorAll('.weird-mig-one').forEach(btn => {
+    btn.onclick = () => {
+      const f = findings[+btn.dataset.i];
+      if (!f || !f.suggested) return;
+      if (!migrateWeirdDate(f.bid, f.eid, f.date, f.suggested)) { showToast('⚠ ย้ายไม่สำเร็จ', true); return; }
+      saveDaily();
+      showToast('✓ ย้าย ' + f.date + ' → ' + f.suggested);
+      renderWeirdDateScan();
+    };
+  });
+  out.querySelectorAll('.weird-del-one').forEach(btn => {
+    btn.onclick = () => {
+      const f = findings[+btn.dataset.i];
+      if (!f) return;
+      if (!confirm('ลบรายการนี้ถาวร? (ย้อนกลับไม่ได้)\n\nสาขา: ' + (getBranch(f.bid)?.name || f.bid) + '\nพนักงาน: ' + (empById(f.eid)?.name || f.eid) + '\nวันที่: ' + f.date)) return;
+      if (DAILY[f.bid] && DAILY[f.bid][f.eid]) delete DAILY[f.bid][f.eid][f.date];
+      saveDaily();
+      showToast('🗑 ลบ ' + f.date);
+      renderWeirdDateScan();
+    };
+  });
+  const allMigBtn = document.getElementById('weirdMigrateAll');
+  if (allMigBtn) allMigBtn.onclick = () => {
+    if (!confirm('ย้ายทั้งหมด ' + migratableCount + ' รายการ เป็นปี ค.ศ. ที่ถูกต้อง?\n(ถ้ามีข้อมูลเดิมในวันนั้นแล้ว จะรวมยอดเข้าด้วยกัน)')) return;
+    let ok = 0;
+    findings.forEach(f => { if (f.suggested && migrateWeirdDate(f.bid, f.eid, f.date, f.suggested)) ok++; });
+    saveDaily();
+    showToast('✓ ย้ายแล้ว ' + ok + ' รายการ');
+    renderWeirdDateScan();
+  };
+  const allDelBtn = document.getElementById('weirdDeleteAll');
+  if (allDelBtn) allDelBtn.onclick = () => {
+    if (!confirm('ลบทั้งหมด ' + findings.length + ' รายการ ออกถาวร? (ย้อนกลับไม่ได้)')) return;
+    findings.forEach(f => { if (DAILY[f.bid] && DAILY[f.bid][f.eid]) delete DAILY[f.bid][f.eid][f.date]; });
+    saveDaily();
+    showToast('🗑 ลบแล้ว ' + findings.length + ' รายการ');
+    renderWeirdDateScan();
+  };
+}
+
 function renderUsersView() {
   if (!isAdmin()) return;
   renderSidebar();
@@ -4238,6 +4367,17 @@ function renderUsersView() {
     '<button type="button" id="importBackupBtn" style="padding:10px 18px;border:1px solid var(--gray-line);border-radius:8px;background:#fff;color:#111;font-weight:700;cursor:pointer">⬆ Import ไฟล์ backup</button>' +
     '<input type="file" id="importBackupInput" accept="application/json,.json" style="display:none">' +
     '</div></div>';
+
+  // ---- Weird-date data fixer ----
+  html += '<div class="card" style="margin-bottom:18px;border:2px dashed #D97706">' +
+    '<h3 style="color:#92400E"><span>🔧</span> ตรวจสอบและซ่อมข้อมูลปีผิด</h3>' +
+    '<div style="font-size:13px;color:var(--gray-text);margin-bottom:12px">' +
+    'สแกนข้อมูลที่อาจถูกบันทึกผิดปี (เช่น พิมพ์ปี พ.ศ. <strong>2569</strong> แทน ค.ศ. <strong>2026</strong>) — ข้อมูลพวกนี้จะมองไม่เห็นในเมนูปกติ ' +
+    'แต่ยังอยู่ในระบบ · กดสแกนเพื่อหาและย้ายมาเป็นปี ค.ศ. ที่ถูกต้อง' +
+    '</div>' +
+    '<button type="button" id="scanWeirdBtn" style="padding:10px 18px;border:none;border-radius:8px;background:#D97706;color:#fff;font-weight:700;cursor:pointer">🔍 สแกนหาข้อมูลปีผิด</button>' +
+    '<div id="weirdResults" style="margin-top:14px"></div>' +
+  '</div>';
 
   // ---- Branches management ----
   html += '<div class="card" style="margin-bottom:18px">' +
@@ -4364,6 +4504,8 @@ function renderUsersView() {
 
   const exportBtn = document.getElementById('exportBackupBtn');
   if (exportBtn) exportBtn.onclick = () => downloadBackupFile(false);
+  const scanBtn = document.getElementById('scanWeirdBtn');
+  if (scanBtn) scanBtn.onclick = () => renderWeirdDateScan();
   const importBtn = document.getElementById('importBackupBtn');
   const importInput = document.getElementById('importBackupInput');
   if (importBtn && importInput) {
