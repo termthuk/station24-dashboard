@@ -3799,7 +3799,7 @@ function renderEmpAnalysisView() {
   };
 }
 
-// ===== Combined PDF for selected analysis cards (one page per emp-month) =====
+// ===== Combined PDF for selected analysis cards (1 employee = 1 A4 page) =====
 async function saveAnalysisCardsAsCombinedPDF(selected, monthFromYM, monthToYM, isTrainer) {
   if (!selected.length) return;
   if (typeof html2canvas === 'undefined') { showToast('⚠ โหลด html2canvas ไม่สำเร็จ', true); return; }
@@ -3816,7 +3816,7 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthFromYM, monthToYM, 
     const pdf = new JsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 8;
+    const margin = 6;
     const usableW = pageW - margin * 2;
     const usableH = pageH - margin * 2;
     for (let i = 0; i < selected.length; i++) {
@@ -3832,24 +3832,22 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthFromYM, monthToYM, 
         ignoreElements: node => node.classList && node.classList.contains('no-capture')
       });
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const imgH = (canvas.height * usableW) / canvas.width;
+      // Fit-to-page: scale image so it fits within usable area (preserving aspect ratio)
+      const widthScale = usableW / canvas.width;
+      const heightScale = usableH / canvas.height;
+      const scale = Math.min(widthScale, heightScale);
+      const drawW = canvas.width * scale;
+      const drawH = canvas.height * scale;
+      const xOff = margin + (usableW - drawW) / 2;
+      const yOff = margin; // top-align so the header is always at the top of the page
       if (i > 0) pdf.addPage();
-      let heightLeft = imgH;
-      let position = margin;
-      pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
-      heightLeft -= usableH;
-      while (heightLeft > 0) {
-        position = margin - (imgH - heightLeft);
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
-        heightLeft -= usableH;
-      }
+      pdf.addImage(imgData, 'JPEG', xOff, yOff, drawW, drawH);
     }
     const roleLabel = isTrainer ? 'เทรนเนอร์' : 'เซลล์';
     const monthSuffix = monthFromYM === monthToYM ? monthFromYM : (monthFromYM + '_to_' + monthToYM);
     const filename = 'Station24_วิเคราะห์' + roleLabel + '_' + monthSuffix + '_' + selected.length + 'รายการ.pdf';
     pdf.save(filename);
-    showToast('✓ บันทึก ' + selected.length + ' รายการ · 1 ไฟล์');
+    showToast('✓ บันทึก ' + selected.length + ' รายการ · ' + selected.length + ' หน้า');
   } catch(e) {
     console.error('saveAnalysisCardsAsCombinedPDF failed', e);
     showToast('⚠ บันทึก PDF ไม่สำเร็จ', true);
