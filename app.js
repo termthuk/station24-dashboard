@@ -2978,6 +2978,7 @@ let eaMonth = todayBKK().slice(0, 7); // YYYY-MM
 let eaRole = 'sale';
 let eaSelectedIds = new Set();
 let eaSelectionKey = '';
+let eaShowDeep = true;
 
 function thaiMonthLabel(ym) {
   const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -3206,6 +3207,7 @@ function renderEmpAnalysisView() {
   const selectedCount = eaSelectedIds.size;
 
   let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<button type="button" id="eaToggleDeep" style="padding:7px 14px;border:1px solid #7C3AED;background:' + (eaShowDeep ? '#7C3AED' : '#fff') + ';color:' + (eaShowDeep ? '#fff' : '#7C3AED') + ';border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800">🧠 วิเคราะห์ SKU ' + (eaShowDeep ? '(ซ่อน)' : '(แสดง)') + '</button>' +
     '<button type="button" id="eaSelectAll" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">☑ เลือกทั้งหมด</button>' +
     '<button type="button" id="eaSelectNone" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">☐ ยกเลิก</button>' +
     '<button type="button" id="eaBatchPdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">👤 บันทึก PDF รายคน (<span id="eaSelCount">' + selectedCount + '</span>)</button>' +
@@ -3317,7 +3319,7 @@ function renderEmpAnalysisView() {
             '</ul></div>' +
           (function(){
             const deep = deepAnalyzeOne(x, analysis);
-            return '<details class="ea-deep no-capture-toggle" open style="margin-top:8px;border:2px dashed ' + ac + ';border-radius:10px;padding:8px 12px;background:#fff">' +
+            return '<details class="ea-deep no-capture-toggle"' + (eaShowDeep ? ' open' : '') + ' style="margin-top:8px;border:2px dashed ' + ac + ';border-radius:10px;padding:8px 12px;background:#fff">' +
               '<summary style="cursor:pointer;font-size:12px;font-weight:800;color:' + ac + ';list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧠 วิเคราะห์ SKU เชิงลึก</span><span style="font-size:10px;color:var(--gray-text);font-weight:600">อันดับ ' + deep.rank + '/' + deep.total + ' · ลงข้อมูล ' + deep.recordedDays + '/' + daysInRange + ' วัน</span></summary>' +
               '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">' +
                 '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px">' +
@@ -3367,6 +3369,17 @@ function renderEmpAnalysisView() {
   };
   if (thisBtn) thisBtn.onclick = () => { eaMonth = todayMonth; renderEmpAnalysisView(); };
 
+  // Toggle all deep-analysis sections
+  const toggleDeepBtn = document.getElementById('eaToggleDeep');
+  if (toggleDeepBtn) {
+    toggleDeepBtn.onclick = () => {
+      eaShowDeep = !eaShowDeep;
+      container.querySelectorAll('details.ea-deep').forEach(d => { d.open = eaShowDeep; });
+      toggleDeepBtn.style.background = eaShowDeep ? '#7C3AED' : '#fff';
+      toggleDeepBtn.style.color = eaShowDeep ? '#fff' : '#7C3AED';
+      toggleDeepBtn.innerHTML = '🧠 วิเคราะห์ SKU ' + (eaShowDeep ? '(ซ่อน)' : '(แสดง)');
+    };
+  }
   // Per-card checkbox
   container.querySelectorAll('.ea-select-cb').forEach(cb => {
     cb.onchange = () => {
