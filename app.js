@@ -2976,6 +2976,8 @@ function renderYearTrainView() {
 // ===== Employee analysis view (per-person, split by Sale / Trainer) =====
 let eaMonth = todayBKK().slice(0, 7); // YYYY-MM
 let eaRole = 'sale';
+let eaSelectedIds = new Set();
+let eaSelectionKey = '';
 
 function thaiMonthLabel(ym) {
   const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -3089,10 +3091,23 @@ function renderEmpAnalysisView() {
   };
 
   const exportName = isTrainer ? 'Station24_วิเคราะห์เทรนเนอร์' : 'Station24_วิเคราะห์เซลล์';
+  // Sync selection across role/month changes
+  const selKey = eaRole + '|' + eaMonth;
+  const visibleIds = analysis.map(x => x.emp.id);
+  if (eaSelectionKey !== selKey) {
+    eaSelectionKey = selKey;
+    eaSelectedIds = new Set(visibleIds);
+  } else {
+    eaSelectedIds = new Set([...eaSelectedIds].filter(id => visibleIds.includes(id)));
+  }
+  const selectedCount = eaSelectedIds.size;
+
   let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
-    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
-    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
-    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
+    '<button type="button" id="eaSelectAll" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">☑ เลือกทั้งหมด</button>' +
+    '<button type="button" id="eaSelectNone" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">☐ ยกเลิก</button>' +
+    '<button type="button" id="eaBatchPdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">👤 บันทึก PDF รายคน (<span id="eaSelCount">' + selectedCount + '</span>)</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 PNG (ทั้งหน้า)</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 JPG (ทั้งหน้า)</button>' +
     '</div>' +
     '<div class="card no-capture" style="margin-bottom:14px;padding:14px 16px">' +
       '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center">' +
@@ -3145,7 +3160,14 @@ function renderEmpAnalysisView() {
         const diag = isTrainer ? trainerDiag(t, x.achievement) : saleDiag(t, x.achievement);
         const sug = isTrainer ? trainerSug(t, x.achievement) : saleSug(t, x.achievement);
         const barPct = Math.min(x.achievement, 100);
-        return '<div class="card" style="background:' + bg + ';border:1px solid ' + ac + ';border-radius:12px;padding:14px 16px;margin-bottom:0">' +
+        const isSelected = eaSelectedIds.has(x.emp.id);
+        return '<div class="ea-card-wrap" style="position:relative">' +
+          '<label class="no-capture" title="เลือกเพื่อ Export PDF" style="position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;padding:5px 10px;background:#fff;border:2px solid ' + ac + ';border-radius:999px;cursor:pointer;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.06)">' +
+            '<input type="checkbox" class="ea-select-cb" data-eid="' + x.emp.id + '"' + (isSelected ? ' checked' : '') + ' style="margin:0;cursor:pointer;width:16px;height:16px;accent-color:' + ac + '">' +
+            '<span style="font-size:11px;font-weight:700;color:' + ac + '">PDF</span>' +
+          '</label>' +
+          '<div id="ea-card-' + x.emp.id + '" class="card" style="background:' + bg + ';border:1px solid ' + ac + ';border-radius:12px;padding:14px 16px;padding-top:46px;margin-bottom:0">' +
+          '<div style="position:absolute;top:14px;right:16px;font-size:10px;color:var(--gray-text);font-weight:600;background:#fff;padding:3px 8px;border-radius:6px;border:1px solid var(--gray-line)">📅 ' + thaiMonthLabel(eaMonth) + '</div>' +
           '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' + av +
             '<div style="flex:1;min-width:0">' +
               '<div style="font-size:15px;font-weight:800;color:#0F0F0F">' + x.emp.name + '</div>' +
@@ -3190,6 +3212,7 @@ function renderEmpAnalysisView() {
             '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.6">' +
             sug.map(s => '<li>' + s + '</li>').join('') +
             '</ul></div>' +
+          '</div>' +
           '</div>';
       }).join('') +
       '</div>';
@@ -3214,6 +3237,82 @@ function renderEmpAnalysisView() {
     if (next <= todayMonth) { eaMonth = next; renderEmpAnalysisView(); }
   };
   if (thisBtn) thisBtn.onclick = () => { eaMonth = todayMonth; renderEmpAnalysisView(); };
+
+  // Per-card checkbox
+  container.querySelectorAll('.ea-select-cb').forEach(cb => {
+    cb.onchange = () => {
+      if (cb.checked) eaSelectedIds.add(cb.dataset.eid);
+      else eaSelectedIds.delete(cb.dataset.eid);
+      const c = document.getElementById('eaSelCount');
+      if (c) c.textContent = eaSelectedIds.size;
+    };
+  });
+  // Select all / none
+  document.getElementById('eaSelectAll').onclick = () => {
+    eaSelectedIds = new Set(visibleIds);
+    container.querySelectorAll('.ea-select-cb').forEach(cb => { cb.checked = true; });
+    const c = document.getElementById('eaSelCount'); if (c) c.textContent = eaSelectedIds.size;
+  };
+  document.getElementById('eaSelectNone').onclick = () => {
+    eaSelectedIds.clear();
+    container.querySelectorAll('.ea-select-cb').forEach(cb => { cb.checked = false; });
+    const c = document.getElementById('eaSelCount'); if (c) c.textContent = '0';
+  };
+  // Batch PDF
+  document.getElementById('eaBatchPdf').onclick = () => {
+    const selected = analysis.filter(x => eaSelectedIds.has(x.emp.id));
+    if (!selected.length) { showToast('⚠ ยังไม่ได้เลือกพนักงาน', true); return; }
+    saveAnalysisCardsAsCombinedPDF(selected, eaMonth, isTrainer);
+  };
+}
+
+// ===== Combined PDF for selected analysis cards =====
+async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
+  if (!selected.length) return;
+  if (typeof html2canvas === 'undefined') { showToast('⚠ โหลด html2canvas ไม่สำเร็จ', true); return; }
+  const jspdfNs = window.jspdf || window.jsPDF || null;
+  const JsPDFCtor = (jspdfNs && jspdfNs.jsPDF) || (typeof jsPDF !== 'undefined' ? jsPDF : null);
+  if (!JsPDFCtor) { showToast('⚠ โหลด jsPDF ไม่สำเร็จ', true); return; }
+  try {
+    showToast('⏳ กำลังสร้าง PDF · ' + selected.length + ' คน...');
+    const pdf = new JsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const usableW = pageW - margin * 2;
+    const usableH = pageH - margin * 2;
+    for (let i = 0; i < selected.length; i++) {
+      const x = selected[i];
+      const el = document.getElementById('ea-card-' + x.emp.id);
+      if (!el) continue;
+      const canvas = await html2canvas(el, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        ignoreElements: node => node.classList && node.classList.contains('no-capture')
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const imgH = (canvas.height * usableW) / canvas.width;
+      if (i > 0) pdf.addPage();
+      let heightLeft = imgH;
+      let position = margin;
+      pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
+      heightLeft -= usableH;
+      while (heightLeft > 0) {
+        position = margin - (imgH - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
+        heightLeft -= usableH;
+      }
+    }
+    const roleLabel = isTrainer ? 'เทรนเนอร์' : 'เซลล์';
+    const filename = 'Station24_วิเคราะห์' + roleLabel + '_' + monthYM + '_' + selected.length + 'คน.pdf';
+    pdf.save(filename);
+    showToast('✓ บันทึก ' + selected.length + ' คน · 1 ไฟล์');
+  } catch(e) {
+    console.error('saveAnalysisCardsAsCombinedPDF failed', e);
+    showToast('⚠ บันทึก PDF ไม่สำเร็จ', true);
+  }
 }
 
 // ===== Record Sales view (all employees with inline forms) =====
