@@ -2761,6 +2761,90 @@ function renderYearTrainView() {
       : '<div style="text-align:center;color:var(--gray-text);font-size:12px;padding:30px">— ยังไม่มีเทรนเนอร์ที่มียอดในช่วงนี้ —</div>') +
     '</div>';
 
+  // ===== Analysis card =====
+  html += (function(){
+    const passedKpi = overlaid.filter(r => r.train >= TRAIN_KPI).sort((a,b) => b.train - a.train);
+    const belowKpi = overlaid.filter(r => r.train > 0 && r.train < TRAIN_KPI).sort((a,b) => b.train - a.train);
+    const noRecord = overlaid.filter(r => r.train === 0);
+    const avgTrain = gTrainers ? Math.round(gTrain / gTrainers) : 0;
+    const passPct = gTrainers ? Math.round(passedKpi.length * 100 / gTrainers) : 0;
+    const weeklyMini = Math.ceil(TRAIN_KPI / 52);
+    const allDays = overlaid.map(r => r.days || 0);
+    const avgDays = allDays.length ? Math.round(allDays.reduce((a,b) => a+b, 0) / allDays.length) : 0;
+    const sparseRecording = avgDays > 0 && avgDays < 30;
+    const empRow = (r, accent, suffix) =>
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-bottom:4px;font-size:12px">' +
+        '<span style="font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + r.emp.name + ' <span style="color:var(--gray-text);font-weight:500;font-size:11px">· ' + r.branch.emoji + ' ' + r.branch.name + '</span></span>' +
+        '<span style="font-weight:800;color:' + accent + ';white-space:nowrap">' + fmtInt(r.train) + ' ' + suffix + '</span>' +
+      '</div>';
+    return '<div class="card" style="margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:14px;border-bottom:2px solid var(--red)">' +
+        '<h3 style="margin:0;border:none;padding:0"><span>📊</span> วิเคราะห์เทรนเนอร์ตาม KPI ' + TRAIN_KPI + ' ครั้ง/คน</h3>' +
+        '<div style="font-size:12px;color:var(--gray-text);font-weight:600">ผ่าน ' + passedKpi.length + '/' + gTrainers + ' คน (' + passPct + '%)</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:14px">' +
+        '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:12px 14px">' +
+          '<div style="font-size:13px;font-weight:800;color:#166534;margin-bottom:8px">✅ ผ่าน KPI (' + passedKpi.length + ' คน)</div>' +
+          (passedKpi.length
+            ? passedKpi.map(r => empRow(r, '#166534', '(+' + fmtInt(r.train - TRAIN_KPI) + ')')).join('')
+            : '<div style="text-align:center;color:#9CA3AF;font-size:12px;padding:14px">— ยังไม่มีใครผ่าน —</div>') +
+        '</div>' +
+        '<div style="background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px">' +
+          '<div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:8px">⚠ ใกล้เคียงแต่ยังไม่ผ่าน (' + belowKpi.length + ' คน · แสดง Top ' + Math.min(belowKpi.length, 10) + ')</div>' +
+          (belowKpi.length
+            ? belowKpi.slice(0, 10).map(r => empRow(r, '#92400E', '(-' + fmtInt(TRAIN_KPI - r.train) + ')')).join('')
+            : '<div style="text-align:center;color:#9CA3AF;font-size:12px;padding:14px">— ไม่มี —</div>') +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px;margin-bottom:14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#991B1B;margin-bottom:8px">🚨 สิ่งที่น่ากังวลในข้อมูล</div>' +
+        '<ul style="margin:0;padding-left:20px;font-size:12px;color:#7F1D1D;line-height:1.8">' +
+          '<li>เฉลี่ยเทรน <strong>' + fmtInt(avgTrain) + ' ครั้ง/คน</strong> — ' + (avgTrain >= TRAIN_KPI ? '<strong style="color:#166534">ผ่าน KPI แล้ว 🎉</strong>' : 'ห่างจาก KPI <strong>' + fmtInt(TRAIN_KPI - avgTrain) + ' ครั้ง</strong>') + '</li>' +
+          '<li><strong>' + (gTrainers - passedKpi.length) + '/' + gTrainers + ' คน</strong> ยังไม่ถึง KPI (' + (100 - passPct) + '%)</li>' +
+          (noRecord.length ? '<li><strong>' + noRecord.length + ' คน</strong> ยังไม่มีบันทึกเทรนในช่วงนี้เลย — ตรวจสอบว่าทำงานอยู่หรือลืมลงข้อมูล</li>' : '') +
+          (sparseRecording ? '<li>เฉลี่ยลงข้อมูลเพียง <strong>' + avgDays + ' วัน/คน</strong> — สงสัยว่าข้อมูลยังไม่ครบทั้งช่วง</li>' : '') +
+        '</ul>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">' +
+        '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px 14px">' +
+          '<div style="font-size:13px;font-weight:800;color:#1E3A8A;margin-bottom:8px">🔍 สาเหตุที่เทรนน้อย (ที่เป็นไปได้)</div>' +
+          '<ol style="margin:0;padding-left:20px;font-size:12px;color:#1F2937;line-height:1.8">' +
+            '<li><strong>กรอกข้อมูลไม่ครบ</strong> — ลืมลงเทรนรายวัน หรือลงไม่ทุกวัน</li>' +
+            '<li><strong>ลูกค้า PT ในสาขาน้อย</strong> — ต้องเพิ่มยอด MEMBER แล้ว upsell PT</li>' +
+            '<li><strong>เทรนเนอร์ใหม่</strong> ยังไม่มีฐานลูกค้าประจำ</li>' +
+            '<li><strong>ตารางลูกค้า/เทรนเนอร์ไม่ตรงกัน</strong> — วัน off ชนกัน</li>' +
+            '<li><strong>No-show rate สูง</strong> — ลูกค้าซื้อแล้วไม่มาตามนัด</li>' +
+          '</ol>' +
+        '</div>' +
+        '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:12px 14px">' +
+          '<div style="font-size:13px;font-weight:800;color:#166534;margin-bottom:8px">🛠 วิธีแก้ไขที่แนะนำ</div>' +
+          '<div style="font-size:12px;color:#1F2937;line-height:1.7">' +
+            '<div style="margin-bottom:8px"><strong style="color:#166534">📅 ระยะสั้น (1-2 สัปดาห์)</strong>' +
+              '<ul style="margin:2px 0 0;padding-left:20px">' +
+                '<li>บังคับลงข้อมูลเทรน <strong>ทุกวัน</strong> ก่อนปิดร้าน</li>' +
+                '<li>ลงข้อมูลย้อนหลังด้วยปุ่ม 📅 วันที่ลงยอด ในหน้าสาขา</li>' +
+              '</ul>' +
+            '</div>' +
+            '<div style="margin-bottom:8px"><strong style="color:#166534">📅 ระยะกลาง (1 เดือน)</strong>' +
+              '<ul style="margin:2px 0 0;padding-left:20px">' +
+                '<li>ตั้ง mini-KPI = <strong>' + weeklyMini + ' ครั้ง/สัปดาห์/คน</strong> (' + TRAIN_KPI + ' ÷ 52)</li>' +
+                '<li>Buddy system — คนผ่าน KPI โค้ชคนใกล้ผ่าน</li>' +
+                '<li>โทร follow-up no-show ภายใน 24 ชม.</li>' +
+              '</ul>' +
+            '</div>' +
+            '<div><strong style="color:#166534">📅 ระยะยาว (3 เดือน)</strong>' +
+              '<ul style="margin:2px 0 0;padding-left:20px">' +
+                '<li>Incentive ขั้นบันได: ผ่าน ' + TRAIN_KPI + ' = โบนัส X · ผ่าน ' + (TRAIN_KPI + 50) + ' = X+Y</li>' +
+                '<li>อบรม upselling PT ให้ Sale & Membership</li>' +
+                '<li>จัด Free Trial Session เดือนละครั้งเพื่อหาลูกค้าใหม่</li>' +
+              '</ul>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  })();
+
   const container = document.getElementById('yearTrainContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
