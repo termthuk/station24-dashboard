@@ -2964,22 +2964,41 @@ function renderYearTrainView() {
 }
 
 // ===== Employee analysis view (per-person, split by Sale / Trainer) =====
-let eaRange = oneYearRangeBKK();
+let eaMonth = todayBKK().slice(0, 7); // YYYY-MM
 let eaRole = 'sale';
 
+function thaiMonthLabel(ym) {
+  const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  const y = parseInt(ym.slice(0, 4), 10);
+  const m = parseInt(ym.slice(5, 7), 10);
+  return months[m - 1] + ' ' + (y + 543);
+}
+function shiftMonth(ym, delta) {
+  let y = parseInt(ym.slice(0, 4), 10);
+  let m = parseInt(ym.slice(5, 7), 10) + delta;
+  while (m < 1) { m += 12; y--; }
+  while (m > 12) { m -= 12; y++; }
+  return y + '-' + String(m).padStart(2, '0');
+}
 function renderEmpAnalysisView() {
   renderSidebar();
-  const r = eaRange;
   const today = todayBKK();
+  const todayMonth = today.slice(0, 7);
+  if (eaMonth > todayMonth) eaMonth = todayMonth;
   const isTrainer = eaRole === 'trainer';
   const branchesView = filteredBranches();
 
-  const fromStr = r.from || '1970-01-01';
-  const toStr = r.to || today;
-  const daysInRange = Math.max(1, Math.round((new Date(toStr) - new Date(fromStr)) / 86400000) + 1);
-  const cappedDays = Math.min(daysInRange, 365);
+  const monthStart = eaMonth + '-01';
+  const lastDay = new Date(parseInt(eaMonth.slice(0, 4), 10), parseInt(eaMonth.slice(5, 7), 10), 0).getDate();
+  const monthEnd = eaMonth + '-' + String(lastDay).padStart(2, '0');
+  const isCurrentMonth = eaMonth === todayMonth;
+  const effectiveEnd = isCurrentMonth ? today : monthEnd;
+  const r = { from: monthStart, to: effectiveEnd };
+  const daysInRange = isCurrentMonth ? parseInt(today.slice(8, 10), 10) : lastDay;
+  const cappedDays = Math.min(daysInRange, 30);
   const SALE_KPI_RANGE = DAILY_QUOTA * cappedDays;
-  const TRAINER_KPI_RANGE = Math.round(TRAIN_KPI * (cappedDays / 365));
+  const trainerMonthly = Math.round(TRAIN_KPI / 12);
+  const TRAINER_KPI_RANGE = isCurrentMonth ? Math.max(1, Math.round(trainerMonthly * cappedDays / 30)) : trainerMonthly;
 
   const all = branchesView.flatMap(br =>
     br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
@@ -3000,9 +3019,7 @@ function renderEmpAnalysisView() {
   const sumPrimary = analysis.reduce((s, x) => s + x.primary, 0);
   const avgPrimary = totalCount ? Math.round(sumPrimary / totalCount) : 0;
 
-  const rangeLabel = (r.from || r.to)
-    ? thaiDate(fromStr) + ' — ' + thaiDate(toStr) + ' (' + daysInRange + ' วัน)'
-    : 'ทั้งหมด';
+  const rangeLabel = thaiMonthLabel(eaMonth) + (isCurrentMonth ? ' · ถึงวันที่ ' + parseInt(today.slice(8,10), 10) : '') + ' (' + daysInRange + ' วัน)';
 
   const accent = (a) => a >= 100 ? '#16A34A' : a >= 80 ? '#D97706' : a >= 50 ? '#DC2626' : '#7F1D1D';
   const badge = (a) => a >= 100 ? '✅ ผ่าน KPI' : a >= 80 ? '⚠ ใกล้ผ่าน' : a >= 50 ? '⚠ ต่ำกว่า KPI' : '🚨 ต่ำกว่ามาก';
@@ -3067,7 +3084,17 @@ function renderEmpAnalysisView() {
     '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
     '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
     '</div>' +
-    yearFilterBarHTML('ea', r) +
+    '<div class="card no-capture" style="margin-bottom:14px;padding:14px 16px">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center">' +
+        '<button type="button" id="eaPrevMonth" style="padding:9px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">◀ เดือนก่อนหน้า</button>' +
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+          '<input type="month" id="eaMonth" value="' + eaMonth + '" max="' + todayMonth + '" style="padding:9px 14px;border:1px solid var(--red);border-radius:8px;font-family:inherit;font-size:14px;font-weight:800;color:var(--red-dark);background:#FEF2F2;text-align:center">' +
+          '<div style="font-size:11px;color:var(--gray-text);font-weight:600">เลือกเดือนที่จะวิเคราะห์</div>' +
+        '</div>' +
+        '<button type="button" id="eaNextMonth" ' + (isCurrentMonth ? 'disabled' : '') + ' style="padding:9px 14px;border:1px solid var(--red);background:' + (isCurrentMonth ? '#F3F4F6' : '#fff') + ';color:' + (isCurrentMonth ? '#9CA3AF' : 'var(--red-dark)') + ';border-radius:8px;cursor:' + (isCurrentMonth ? 'not-allowed' : 'pointer') + ';font-family:inherit;font-size:13px;font-weight:800">เดือนถัดไป ▶</button>' +
+        '<button type="button" id="eaThisMonth" style="padding:9px 14px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">↺ เดือนปัจจุบัน</button>' +
+      '</div>' +
+    '</div>' +
     '<div class="card no-capture" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px">' +
       '<button type="button" id="eaTabSale" class="' + (!isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (!isTrainer?'#DC2626':'var(--gray-line)') + ';background:' + (!isTrainer?'#DC2626':'#fff') + ';color:' + (!isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🧑‍💼 Sale</button>' +
       '<button type="button" id="eaTabTrainer" class="' + (isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (isTrainer?'#16A34A':'var(--gray-line)') + ';background:' + (isTrainer?'#16A34A':'#fff') + ';color:' + (isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🏋 เทรนเนอร์</button>' +
@@ -3086,16 +3113,16 @@ function renderEmpAnalysisView() {
       '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:14px 16px">' +
         '<div style="font-size:11px;font-weight:700;color:#991B1B">📊 เฉลี่ย/คน</div>' +
         '<div style="font-size:24px;font-weight:900;color:#991B1B;margin-top:2px">' + (isTrainer ? fmtInt(avgPrimary) + ' ครั้ง' : '฿' + fmt0(avgPrimary)) + '</div>' +
-        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">ในช่วงที่เลือก</div>' +
+        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">' + (isCurrentMonth ? 'เดือนนี้ถึงปัจจุบัน' : 'รวมทั้งเดือน') + '</div>' +
       '</div>' +
       '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #1F2937;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;color:#1F2937">🗓 ช่วง</div>' +
-        '<div style="font-size:13px;font-weight:900;color:#1F2937;margin-top:4px;line-height:1.3">' + rangeLabel + '</div>' +
+        '<div style="font-size:11px;font-weight:700;color:#1F2937">🗓 เดือนที่ดู</div>' +
+        '<div style="font-size:14px;font-weight:900;color:#1F2937;margin-top:4px;line-height:1.3">' + rangeLabel + '</div>' +
       '</div>' +
     '</div>';
 
   if (!analysis.length) {
-    html += '<div class="card"><div style="text-align:center;color:var(--gray-text);padding:40px">— ไม่มี' + (isTrainer?'เทรนเนอร์':'Sale') + 'ในช่วงนี้ —</div></div>';
+    html += '<div class="card"><div style="text-align:center;color:var(--gray-text);padding:40px">— ไม่มี' + (isTrainer?'เทรนเนอร์':'Sale') + 'ในเดือนนี้ —</div></div>';
   } else {
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">' +
       analysis.map(x => {
@@ -3164,17 +3191,19 @@ function renderEmpAnalysisView() {
 
   document.getElementById('eaTabSale').onclick = () => { eaRole = 'sale'; renderEmpAnalysisView(); };
   document.getElementById('eaTabTrainer').onclick = () => { eaRole = 'trainer'; renderEmpAnalysisView(); };
-  const eFromIn = document.getElementById('eaFrom');
-  const eToIn = document.getElementById('eaTo');
-  const ePresetSel = document.getElementById('eaPreset');
-  const eResetBtn = document.getElementById('eaReset');
-  if (eFromIn) eFromIn.onchange = () => { eaRange = { from: eFromIn.value, to: eaRange.to }; renderEmpAnalysisView(); };
-  if (eToIn)   eToIn.onchange   = () => { eaRange = { from: eaRange.from, to: eToIn.value }; renderEmpAnalysisView(); };
-  if (ePresetSel) ePresetSel.onchange = () => {
-    const p = presetRange(ePresetSel.value);
-    if (p) { eaRange = p; renderEmpAnalysisView(); }
+  const monthIn = document.getElementById('eaMonth');
+  const prevBtn = document.getElementById('eaPrevMonth');
+  const nextBtn = document.getElementById('eaNextMonth');
+  const thisBtn = document.getElementById('eaThisMonth');
+  if (monthIn) monthIn.onchange = () => {
+    if (monthIn.value && monthIn.value <= todayMonth) { eaMonth = monthIn.value; renderEmpAnalysisView(); }
   };
-  if (eResetBtn) eResetBtn.onclick = () => { eaRange = oneYearRangeBKK(); renderEmpAnalysisView(); };
+  if (prevBtn) prevBtn.onclick = () => { eaMonth = shiftMonth(eaMonth, -1); renderEmpAnalysisView(); };
+  if (nextBtn) nextBtn.onclick = () => {
+    const next = shiftMonth(eaMonth, 1);
+    if (next <= todayMonth) { eaMonth = next; renderEmpAnalysisView(); }
+  };
+  if (thisBtn) thisBtn.onclick = () => { eaMonth = todayMonth; renderEmpAnalysisView(); };
 }
 
 // ===== Record Sales view (all employees with inline forms) =====
