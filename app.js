@@ -3246,7 +3246,8 @@ function renderEmpAnalysisView() {
   };
   const trainerSug = (t, ach, daysInRange) => {
     const s = [];
-    if (ach < 100) s.push('🎯 mini-KPI ' + Math.ceil(TRAIN_KPI / 52) + ' ครั้ง/สัปดาห์');
+    // KPI = 150/เดือน → เฉลี่ย 5/วัน หรือ ~38/สัปดาห์
+    if (ach < 100) s.push('🎯 mini-KPI ' + Math.ceil(TRAIN_KPI / 30) + ' ครั้ง/วัน (~' + Math.ceil(TRAIN_KPI / 4) + ' ครั้ง/สัปดาห์)');
     if (t.days < daysInRange * 0.3) s.push('📝 ลงข้อมูลเทรนทุกครั้งหลังจบ session');
     if (t.days > 0 && (t.train / t.days) < 3) s.push('📞 จัด schedule ให้แน่น · follow-up no-show ใน 24 ชม.');
     if (t.pt === 0) s.push('💪 Cross-sell PT package ให้ลูกค้าประจำของตน');
@@ -3352,9 +3353,12 @@ function renderEmpAnalysisView() {
     const r = { from: monthStart, to: effectiveEnd };
     const daysInRange = isCurrentMonth ? parseInt(today.slice(8, 10), 10) : lastDay;
     const cappedDays = Math.min(daysInRange, 30);
+    // Sale KPI = ฿5,000/วัน × 30 วัน = ฿150,000/เดือน (ปรับตามวันสำหรับเดือนปัจจุบัน)
     const SALE_KPI_RANGE = DAILY_QUOTA * cappedDays;
-    const trainerMonthly = Math.round(TRAIN_KPI / 12);
-    const TRAINER_KPI_RANGE = isCurrentMonth ? Math.max(1, Math.round(trainerMonthly * cappedDays / 30)) : trainerMonthly;
+    // Trainer KPI = 150 ครั้ง/30 วัน (full month) — ถ้าเดือนปัจจุบันยังไม่ครบ ปรับตามวันที่ผ่านมา
+    const TRAINER_KPI_RANGE = isCurrentMonth
+      ? Math.max(1, Math.round(TRAIN_KPI * cappedDays / 30))
+      : TRAIN_KPI;
     // Pull ALL employees (no filter — show everyone)
     const all = branchesView.flatMap(br =>
       br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
