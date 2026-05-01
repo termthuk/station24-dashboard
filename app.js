@@ -63,6 +63,7 @@ const BACKUP_KEYS = [
 ];
 const DEFAULT_BRANCH_PALETTE = ['#DC2626', '#2563EB', '#16A34A', '#D97706', '#7C3AED', '#DB2777'];
 const DAILY_QUOTA = 5000;
+const TRAIN_KPI = 150;
 const KPI_LINES = [
   { value: 85000,  color: '#DC2626', label: '' },
   { value: 150000, color: '#16A34A', label: '' },
@@ -2708,11 +2709,19 @@ function renderYearTrainView() {
       '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">' + fmtInt(top ? top.train : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div>' +
       '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + topLabel + '</div>' +
     '</div>' +
-    '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:16px 18px">' +
-      '<div style="font-size:12px;font-weight:700;color:#991B1B">📊 เฉลี่ยต่อเทรนเนอร์</div>' +
-      '<div style="font-size:22px;font-weight:900;color:#991B1B;margin-top:4px">' + fmtInt(gTrainers ? Math.round(gTrain / gTrainers) : 0) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง/คน</span></div>' +
-      '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">ตามช่วงที่เลือก</div>' +
-    '</div>' +
+    (function(){
+      const passed = allRows.filter(x => x.train >= TRAIN_KPI).length;
+      const pct = gTrainers ? Math.round(passed * 100 / gTrainers) : 0;
+      const accent = passed >= gTrainers && gTrainers > 0 ? '#16A34A' : (passed > 0 ? '#D97706' : '#991B1B');
+      const subText = gTrainers
+        ? 'ผ่าน <strong style="color:' + accent + '">' + passed + '/' + gTrainers + '</strong> คน (' + pct + '%)'
+        : 'ยังไม่มีเทรนเนอร์';
+      return '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid ' + accent + ';border-radius:12px;padding:16px 18px">' +
+        '<div style="font-size:12px;font-weight:700;color:' + accent + '">🎯 KPI ยอดเทรน</div>' +
+        '<div style="font-size:22px;font-weight:900;color:' + accent + ';margin-top:4px">' + fmtInt(TRAIN_KPI) + ' <span style="font-size:14px;font-weight:700;color:var(--gray-text)">ครั้ง/คน</span></div>' +
+        '<div style="font-size:11px;color:var(--gray-text);margin-top:4px">' + subText + '</div>' +
+      '</div>';
+    })() +
     '</div>';
 
   // Combined Top 5 trainers across all branches — apply per-employee overrides
