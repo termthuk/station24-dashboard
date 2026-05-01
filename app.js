@@ -3089,6 +3089,109 @@ function renderEmpAnalysisView() {
     if (!s.length) s.push('🎉 ผลงานดี · ทำ Buddy coach เพื่อน trainer');
     return s;
   };
+  // ===== Deep analysis: causes / fixes / weaknesses =====
+  const deepAnalyzeOne = (x, sortedAll) => {
+    const t = x.totals;
+    const rank = sortedAll.findIndex(a => a.emp.id === x.emp.id) + 1;
+    const total = sortedAll.length;
+    const isTopThird = total > 0 && rank <= Math.ceil(total / 3);
+    const isBottomThird = total > 0 && rank > Math.floor(total * 2 / 3);
+    const causes = [];
+    const fixes = [];
+    const weaknesses = [];
+    // Find best/worst day in the month
+    const ds = (DAILY[x.branch.id] && DAILY[x.branch.id][x.emp.id]) || {};
+    let bestDay = null, bestVal = 0, recordedDays = [];
+    for (const d in ds) {
+      if (d < (eaMonth + '-01') || d > (eaMonth + '-31')) continue;
+      const e = ds[d] || {};
+      const v = isTrainer ? (+e.train || 0) : ((+e.pt || 0) + (+e.member || 0));
+      if (v > 0) recordedDays.push(d);
+      if (v > bestVal) { bestVal = v; bestDay = d; }
+    }
+    const noRecordDays = daysInRange - recordedDays.length;
+
+    if (isTrainer) {
+      // ---- Causes ----
+      const monthKpi = TRAINER_KPI_RANGE;
+      const gap = monthKpi - t.train;
+      if (t.train === 0) {
+        causes.push('🚨 ไม่มีบันทึกเทรนในเดือน ' + thaiMonthLabel(eaMonth) + ' เลย — อาจลาออก ลืมลงข้อมูล หรือไม่มีลูกค้าเข้าเทรน');
+      } else if (gap > 0) {
+        causes.push('📉 ยังขาดอีก <strong>' + gap + ' ครั้ง</strong> เพื่อถึง KPI ' + monthKpi + ' ครั้ง/เดือน (ทำได้ ' + t.train + ')');
+      }
+      if (t.days > 0) {
+        const perDay = t.train / t.days;
+        if (perDay < 2 && t.train > 0) causes.push('⏰ เฉลี่ย <strong>' + perDay.toFixed(1) + ' ครั้ง/วันเทรน</strong> น้อยกว่า 2 — มี downtime ระหว่าง session');
+      }
+      if (noRecordDays > daysInRange * 0.5 && daysInRange > 7) causes.push('📅 มี <strong>' + noRecordDays + ' วัน</strong> ที่ไม่ได้เทรน (จาก ' + daysInRange + ' วัน) — โอกาสหายมาก');
+      if (t.pt === 0) causes.push('💸 ไม่มียอดขาย PT package — พลาด commission เสริม');
+      else if (t.train > 0) {
+        const valPerSes = t.pt / t.train;
+        if (valPerSes < 200) causes.push('💰 PT sales เฉลี่ย <strong>฿' + fmt0(valPerSes) + '/session</strong> ต่ำ — ขายแบบรายครั้ง ไม่ได้ขาย long-package');
+      }
+      if (isBottomThird && total >= 3) causes.push('📊 อยู่อันดับ <strong>' + rank + '/' + total + '</strong> ในกลุ่มเทรนเนอร์ (กลุ่มล่าง)');
+      // ---- Fixes ----
+      if (gap > 0 && t.train > 0) {
+        const remainingDays = isCurrentMonth ? Math.max(1, lastDay - parseInt(today.slice(8,10), 10)) : 0;
+        if (remainingDays > 0) fixes.push('🎯 ที่เหลือ ' + remainingDays + ' วันในเดือน · ต้องเทรน <strong>' + Math.ceil(gap/remainingDays) + ' ครั้ง/วัน</strong> เพื่อชน KPI');
+        else fixes.push('🎯 mini-KPI สัปดาห์หน้า: ' + Math.ceil(monthKpi/4) + ' ครั้ง');
+      }
+      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลังให้ครบทุก session — ใช้ปุ่ม 📅 วันที่ลงยอด ในหน้าสาขา');
+      if (t.train > 0 && (t.train / Math.max(t.days, 1)) < 3) fixes.push('📞 follow-up no-show ภายใน 24 ชม · จัดตาราง back-to-back ลด gap');
+      if (t.pt === 0) fixes.push('💪 Cross-sell PT package: เริ่มจากลูกค้าประจำที่เทรนสม่ำเสมอ + เสนอ 10/20/30 sessions');
+      if (isBottomThird) fixes.push('🤝 ขอ Buddy coach จากเทรนเนอร์ Top 3 (เรียนรู้ retention/sales technique)');
+      // ---- Weaknesses ----
+      if (t.pt === 0) weaknesses.push('PT package skill: ขาย 0 บาทตลอดเดือน — ต้องอบรมการ upsell');
+      if (t.train > 0 && t.days < daysInRange * 0.3) weaknesses.push('การกระจาย session: เทรนกระจุกเฉพาะบางวัน — ลูกค้าที่ต้องการคิวอื่นอาจหลุดมือ');
+      if (noRecordDays > daysInRange * 0.5) weaknesses.push('Engagement: ' + Math.round(noRecordDays * 100 / daysInRange) + '% ของเดือนไม่มี session — ต้องสร้าง pipeline');
+      if (bestVal > 0 && t.days > 0 && bestVal > (t.train / t.days) * 3) weaknesses.push('Consistency: วันดีสุด ' + bestVal + ' ครั้ง · เฉลี่ย ' + (t.train/t.days).toFixed(1) + ' ครั้ง — variance สูง');
+    } else {
+      // ---- Sale ----
+      const monthKpi = SALE_KPI_RANGE;
+      const ptmem = t.pt + t.member;
+      const gap = monthKpi - ptmem;
+      if (ptmem === 0) {
+        causes.push('🚨 ไม่มียอด PT/MEMBER ในเดือน ' + thaiMonthLabel(eaMonth) + ' — ปิด deal ไม่ได้ หรือไม่ได้ลงข้อมูล');
+      } else if (gap > 0) {
+        causes.push('📉 ขาดอีก <strong>฿' + fmt0(gap) + '</strong> เพื่อถึง KPI ฿' + fmt0(monthKpi) + ' (ทำได้ ฿' + fmt0(ptmem) + ')');
+      }
+      if (noRecordDays > daysInRange * 0.5 && daysInRange > 7) causes.push('📅 ลงข้อมูลเพียง ' + recordedDays.length + '/' + daysInRange + ' วัน — มี ' + noRecordDays + ' วันที่ไม่ลง (ลืม หรือ 0 ยอด?)');
+      const ratio = ptmem > 0 ? t.pt / ptmem : 0;
+      if (ptmem > 0) {
+        if (t.member === 0) causes.push('🎫 MEMBER = 0 ทั้งเดือน — ขาดทักษะขาย package พื้นฐาน');
+        else if (t.pt === 0) causes.push('💪 PT = 0 ทั้งเดือน — ไม่ได้ upsell หลังขาย MEMBER');
+        else if (ratio > 0.85) causes.push('⚖ PT ' + Math.round(ratio*100) + '% : MEMBER ' + Math.round((1-ratio)*100) + '% — ไม่สมดุล (เน้น PT มากเกิน)');
+        else if (ratio < 0.15) causes.push('⚖ MEMBER ' + Math.round((1-ratio)*100) + '% : PT ' + Math.round(ratio*100) + '% — ไม่สมดุล (เน้น MEMBER มากเกิน)');
+      }
+      if (t.plan === 0 && ptmem > 0) causes.push('📋 ไม่มียอด Plan SETUP — พลาด add-on revenue ทุกสัญญา');
+      if (isBottomThird && total >= 3) causes.push('📊 อยู่อันดับ <strong>' + rank + '/' + total + '</strong> ในกลุ่ม Sale (กลุ่มล่าง)');
+      // ---- Fixes ----
+      if (gap > 0 && ptmem > 0) {
+        const remainingDays = isCurrentMonth ? Math.max(1, lastDay - parseInt(today.slice(8,10), 10)) : 0;
+        if (remainingDays > 0) fixes.push('🎯 ที่เหลือ ' + remainingDays + ' วัน · ต้องปิดยอด <strong>฿' + fmt0(Math.ceil(gap/remainingDays)) + '/วัน</strong>');
+        else fixes.push('🎯 เดือนถัดไปตั้งเป้ารายวัน ฿' + fmt0(DAILY_QUOTA));
+      }
+      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลังด้วยปุ่ม 📅 วันที่ลงยอด · ลงทุกวันก่อนปิดร้าน');
+      if (t.member === 0) fixes.push('🎫 อบรม script ขาย MEMBER · เน้น value แบบรายเดือน + flexibility');
+      if (t.pt === 0 && t.member > 0) fixes.push('💪 ฝึก script upsell PT ทันทีหลัง MEMBER ปิด · ใช้ trial session 1 ครั้ง');
+      if (t.plan === 0) fixes.push('📋 รวม Plan SETUP เข้าใน package ทุกครั้งโดยไม่ต้องถาม');
+      if (isBottomThird) fixes.push('🤝 ขอ shadow Top performer 1 สัปดาห์ · ดูเทคนิคปิด deal');
+      // ---- Weaknesses ----
+      if (t.member === 0) weaknesses.push('Membership selling skill: 0 บาท ทั้งเดือน — ขาดทักษะ ฟังดู bottleneck สำคัญ');
+      if (t.pt === 0 && t.member > 0) weaknesses.push('Upsell skill: ขาย MEMBER ได้แต่ไม่ได้ต่อ PT — พลาด commission');
+      if (noRecordDays > daysInRange * 0.5) weaknesses.push('Discipline: ลงข้อมูล ' + Math.round(recordedDays.length * 100 / daysInRange) + '% ของเดือน — ติดตามผลยาก');
+      if (t.plan === 0) weaknesses.push('Add-on selling: Plan SETUP = 0 — เสียโอกาสรายได้เสริมที่ง่ายที่สุด');
+      if (bestVal > 0 && recordedDays.length > 0) {
+        const avgPerDay = ptmem / recordedDays.length;
+        if (bestVal > avgPerDay * 4) weaknesses.push('Consistency: วันดีสุด ฿' + fmt0(bestVal) + ' · เฉลี่ย ฿' + fmt0(avgPerDay) + '/วัน — variance สูง ขาย "ฟลุ๊ก" หรือ?');
+      }
+    }
+    if (!causes.length) causes.push('🎉 ผลงานดีเยี่ยม · ไม่มีจุดอ่อนชัดเจน');
+    if (!fixes.length) fixes.push('🎉 รักษาฟอร์มไว้ · ช่วย coach เพื่อนทีมที่ยังไม่ถึง KPI');
+    if (!weaknesses.length) weaknesses.push('— ไม่พบจุดอ่อนเชิงระบบ —');
+    return { causes, fixes, weaknesses, rank, total, bestDay, bestVal, recordedDays: recordedDays.length, noRecordDays };
+  };
 
   const exportName = isTrainer ? 'Station24_วิเคราะห์เทรนเนอร์' : 'Station24_วิเคราะห์เซลล์';
   // Sync selection across role/month changes
@@ -3207,11 +3310,37 @@ function renderEmpAnalysisView() {
                 diag.issues.map(s => '<span style="background:#fff;border:1px solid #FCA5A5;color:#991B1B;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
                 '</div></div>'
             : '') +
-          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 10px">' +
-            '<div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:4px">🛠 คำแนะนำ</div>' +
+          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 10px;margin-bottom:8px">' +
+            '<div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:4px">🛠 สรุปย่อ</div>' +
             '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.6">' +
             sug.map(s => '<li>' + s + '</li>').join('') +
             '</ul></div>' +
+          (function(){
+            const deep = deepAnalyzeOne(x, analysis);
+            return '<details class="ea-deep no-capture-toggle" open style="margin-top:8px;border:2px dashed ' + ac + ';border-radius:10px;padding:8px 12px;background:#fff">' +
+              '<summary style="cursor:pointer;font-size:12px;font-weight:800;color:' + ac + ';list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧠 วิเคราะห์ SKU เชิงลึก</span><span style="font-size:10px;color:var(--gray-text);font-weight:600">อันดับ ' + deep.rank + '/' + deep.total + ' · ลงข้อมูล ' + deep.recordedDays + '/' + daysInRange + ' วัน</span></summary>' +
+              '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">' +
+                '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px">' +
+                  '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:6px">🔍 1. สาเหตุของยอด' + (isTrainer ? 'เทรน' : 'ขาย') + 'ที่น้อย</div>' +
+                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+                  deep.causes.map(s => '<li>' + s + '</li>').join('') +
+                  '</ul>' +
+                '</div>' +
+                '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px">' +
+                  '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:6px">🛠 2. คำแนะนำและวิธีแก้ไข</div>' +
+                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+                  deep.fixes.map(s => '<li>' + s + '</li>').join('') +
+                  '</ul>' +
+                '</div>' +
+                '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:8px 10px">' +
+                  '<div style="font-size:11px;font-weight:800;color:#92400E;margin-bottom:6px">⚠ 3. จุดอ่อนที่พลาดและการปรับปรุง</div>' +
+                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+                  deep.weaknesses.map(s => '<li>' + s + '</li>').join('') +
+                  '</ul>' +
+                '</div>' +
+              '</div>' +
+            '</details>';
+          })() +
           '</div>' +
           '</div>';
       }).join('') +
@@ -3273,6 +3402,11 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
   const jspdfNs = window.jspdf || window.jsPDF || null;
   const JsPDFCtor = (jspdfNs && jspdfNs.jsPDF) || (typeof jsPDF !== 'undefined' ? jsPDF : null);
   if (!JsPDFCtor) { showToast('⚠ โหลด jsPDF ไม่สำเร็จ', true); return; }
+  // Force-open all collapsed deep-analysis sections for capture, restore after
+  const wasClosed = [];
+  document.querySelectorAll('details.ea-deep').forEach(d => {
+    if (!d.open) { wasClosed.push(d); d.open = true; }
+  });
   try {
     showToast('⏳ กำลังสร้าง PDF · ' + selected.length + ' คน...');
     const pdf = new JsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -3312,6 +3446,8 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
   } catch(e) {
     console.error('saveAnalysisCardsAsCombinedPDF failed', e);
     showToast('⚠ บันทึก PDF ไม่สำเร็จ', true);
+  } finally {
+    wasClosed.forEach(d => { d.open = false; });
   }
 }
 
