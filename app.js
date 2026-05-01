@@ -359,6 +359,7 @@ function filteredBranches() {
 }
 let activeEmployee = null;
 let branchEntryDate = null;
+let branchSummaryRange = { from: '', to: '' };
 let activeDailyEmp = null;
 let activeEditEmp = null;
 let editEmpPhotoBase64 = '';
@@ -760,11 +761,34 @@ function renderBranchInline() {
     '<div style="font-size:11px;color:var(--gray-text);margin-top:8px;font-style:italic">💡 กดปุ่ม ✕ มุมขวาบนของการ์ดพนักงานเพื่อลบ</div>' +
     '</div>';
 
+  // Range filter + branch summary for "ดูยอดรวมตามช่วงเวลา"
+  const sr = branchSummaryRange;
+  const hasRange = !!(sr.from || sr.to);
+  const rangeLabel = hasRange
+    ? thaiDate(sr.from || '1970-01-01') + ' — ' + thaiDate(sr.to || todayBKK())
+    : 'ทั้งหมด';
+  let brPT = 0, brMEM = 0, brTrain = 0, brPlan = 0;
+  br.employees.forEach(e => {
+    const tt = empTotalsInRange(br.id, e.id, sr);
+    brPT += tt.pt; brMEM += tt.member; brPlan += tt.plan;
+    if (isPosPT(e.position)) brTrain += tt.train;
+  });
+  html += yearFilterBarHTML('br', sr, '↺ ทั้งหมด');
+  html += '<div class="card no-capture" style="background:linear-gradient(135deg,#FEF2F2,#fff);border:1px solid #FECACA;border-radius:12px;padding:14px 18px;margin-bottom:14px">' +
+    '<div style="font-size:11px;color:#7F1D1D;font-weight:700;margin-bottom:8px">📊 สรุปสาขา' + br.name + ' · ช่วง: <strong>' + rangeLabel + '</strong></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">' +
+      '<div style="background:#fff;border-left:4px solid #DC2626;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#991B1B;font-weight:700">💪 รวม PT</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brPT) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #1F1F1F;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#1F1F1F;font-weight:700">🎫 รวม MEMBER</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brMEM) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #16A34A;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#166534;font-weight:700">💰 PT + MEMBER</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brPT + brMEM) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #92400E;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#92400E;font-weight:700">🏋 จำนวนเทรน</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">' + fmtInt(brTrain) + ' <span style="font-size:11px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div></div>' +
+    '</div>' +
+  '</div>';
+
   if (!br.employees.length) {
     html += '<div class="empty-state">ยังไม่มีพนักงาน — กด "⚙️ จัดการพนักงาน" เพื่อเพิ่ม</div>';
   } else {
     const renderEmpCard = e => {
-      const t = empDailyTotals(br.id, e.id);
+      const t = empTotalsInRange(br.id, e.id, sr);
       const pos = e.position || 'Sale';
       const pc = posChipClass(pos);
       const team = e.team || 'A';
@@ -851,10 +875,10 @@ function renderBranchInline() {
         '<div class="emp-cat member"><div class="emp-cat-label">🎫 MEM</div><div class="emp-cat-value">฿' + fmtShort(t.member) + '</div></div>' +
         '<div class="emp-cat plan"><div class="emp-cat-label">📋 PLAN</div><div class="emp-cat-value">฿' + fmtShort(t.plan) + '</div></div></div>' +
         '<div class="emp-card-total">' +
-        '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน</span>' +
+        '<span class="emp-card-total-label">รวม PT+MEM · ' + t.days + ' วัน' + (hasRange ? ' · ในช่วง' : '') + '</span>' +
         '<span class="emp-card-total-value">฿' + fmt0(t.pt + t.member) + '</span></div>' +
         (isPT
-          ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;margin-top:6px;font-size:12px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรนรวม</span><span style="color:#78350F;font-weight:800">' + fmtInt(t.train) + ' ครั้ง</span></div>'
+          ? '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;margin-top:6px;font-size:12px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรน' + (hasRange ? 'ในช่วง' : 'รวม') + '</span><span style="color:#78350F;font-weight:800">' + fmtInt(t.train) + ' ครั้ง</span></div>'
           : '') +
         salesForm +
         '</div>';
@@ -901,6 +925,18 @@ function renderBranchInline() {
       renderBranchView();
     };
   }
+
+  const brFromIn = document.getElementById('brFrom');
+  const brToIn = document.getElementById('brTo');
+  const brPresetSel = document.getElementById('brPreset');
+  const brResetBtn = document.getElementById('brReset');
+  if (brFromIn) brFromIn.onchange = () => { branchSummaryRange = { from: brFromIn.value, to: branchSummaryRange.to }; renderBranchView(); };
+  if (brToIn)   brToIn.onchange   = () => { branchSummaryRange = { from: branchSummaryRange.from, to: brToIn.value }; renderBranchView(); };
+  if (brPresetSel) brPresetSel.onchange = () => {
+    const p = presetRange(brPresetSel.value);
+    if (p) { branchSummaryRange = p; renderBranchView(); }
+  };
+  if (brResetBtn) brResetBtn.onclick = () => { branchSummaryRange = { from: '', to: '' }; renderBranchView(); };
 
   const toggleBtn = document.getElementById('toggleAddEmp');
   if (toggleBtn) {
