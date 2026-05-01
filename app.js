@@ -1990,6 +1990,7 @@ function renderAddSalesView() {
 
 // ===== Summary Chart view — split by branch =====
 let scBranchCharts = {};
+let scRange = { from: '', to: '' };
 function renderSummaryChartView() {
   renderSidebar();
   const container = document.getElementById('summaryChartView');
@@ -1997,10 +1998,17 @@ function renderSummaryChartView() {
   Object.values(scBranchCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   scBranchCharts = {};
 
+  const sr = scRange;
+  const hasRange = !!(sr.from || sr.to);
+  const rangeLabel = hasRange
+    ? thaiDate(sr.from || '1970-01-01') + ' — ' + thaiDate(sr.to || todayBKK())
+    : 'ทั้งหมด';
+
   let html = '<div class="main-title-row">' +
     '<h2 class="main-title"><span>📊</span><span>กราฟสรุปยอดขาย (แยกตามสาขา)</span></h2>' +
-    '<div style="font-size:12px;color:var(--gray-text)">ดึงจาก "พนักงาน" (DAILY)</div>' +
+    '<div style="font-size:12px;color:var(--gray-text)">ช่วง: <strong style="color:var(--red-dark)">' + rangeLabel + '</strong></div>' +
     '</div>';
+  html += yearFilterBarHTML('sc', sr, '↺ ทั้งหมด');
 
   // Color customizer (applies to the 3-branch comparison chart only)
   const branchALbl = (getBranch('srinakarin') || { emoji: '🌆', name: 'ศรีนครินทร์' });
@@ -2044,7 +2052,7 @@ function renderSummaryChartView() {
     const br = getBranch(t.id);
     if (!br) return null;
     const rows = br.employees
-      .map(e => { const d = empDailyTotals(br.id, e.id); return { emp: e, branch: br, team: t.team, ...d, total: d.pt + d.member }; })
+      .map(e => { const d = empTotalsInRange(br.id, e.id, scRange); return { emp: e, branch: br, team: t.team, ...d, total: d.pt + d.member }; })
       .sort((a, b) => b.total - a.total);
     return { team: t, branch: br, rows: rows };
   }).filter(Boolean);
@@ -2078,10 +2086,10 @@ function renderSummaryChartView() {
 
   filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
+      .map(e => { const t = empTotalsInRange(br.id, e.id, scRange); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, ...t, total: t.pt + t.member }; })
+      .map(e => { const t = empTotalsInRange(br.id, e.id, scRange); return { emp: e, ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const totA = empsA.reduce((s, r) => s + r.total, 0);
     const totB = empsB.reduce((s, r) => s + r.total, 0);
@@ -2252,10 +2260,10 @@ function renderSummaryChartView() {
 
   filteredBranches().forEach(br => {
     const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
+      .map(e => { const t = empTotalsInRange(br.id, e.id, scRange); return { emp: e, team: 'A', ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
-      .map(e => { const t = empDailyTotals(br.id, e.id); return { emp: e, team: 'B', ...t, total: t.pt + t.member }; })
+      .map(e => { const t = empTotalsInRange(br.id, e.id, scRange); return { emp: e, team: 'B', ...t, total: t.pt + t.member }; })
       .sort((a, b) => b.total - a.total);
     const all = empsA.concat(empsB);
     if (!all.length) return;
@@ -2370,6 +2378,19 @@ function renderSummaryChartView() {
     if (presetSel) presetSel.value = 'default';
     showToast('↺ คืนค่าสีเริ่มต้น');
   };
+
+  // Date range filter handlers
+  const scFromIn = document.getElementById('scFrom');
+  const scToIn = document.getElementById('scTo');
+  const scPresetSel = document.getElementById('scPreset');
+  const scResetBtn = document.getElementById('scReset');
+  if (scFromIn) scFromIn.onchange = () => { scRange = { from: scFromIn.value, to: scRange.to }; renderSummaryChartView(); };
+  if (scToIn)   scToIn.onchange   = () => { scRange = { from: scRange.from, to: scToIn.value }; renderSummaryChartView(); };
+  if (scPresetSel) scPresetSel.onchange = () => {
+    const p = presetRange(scPresetSel.value);
+    if (p) { scRange = p; renderSummaryChartView(); }
+  };
+  if (scResetBtn) scResetBtn.onclick = () => { scRange = { from: '', to: '' }; renderSummaryChartView(); };
 }
 
 // ===== Rolling 1-year window (BKK) =====
