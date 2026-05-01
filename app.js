@@ -738,7 +738,7 @@ function renderBranchInline() {
   const dateBar = canEditAny
     ? '<div style="display:flex;align-items:center;gap:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px 14px;margin-bottom:14px;flex-wrap:wrap">' +
         '<span style="font-size:13px;font-weight:800;color:#991B1B">📅 วันที่ลงยอด:</span>' +
-        '<input type="date" id="branchMainDate" value="' + entryDate + '" style="padding:8px 12px;border:1px solid #FECACA;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#fff;color:#991B1B">' +
+        '<input type="date" id="branchMainDate" value="' + entryDate + '" min="' + (parseInt(today.slice(0,4),10) - 2) + '-01-01" max="' + today + '" style="padding:8px 12px;border:1px solid #FECACA;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#fff;color:#991B1B">' +
         (entryDate !== today ? '<button type="button" id="branchDateResetBtn" style="padding:7px 12px;border:1px solid #FECACA;background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#991B1B">↻ วันนี้</button>' : '') +
         '<span style="font-size:11px;color:#7F1D1D;font-weight:600">ใช้กับพนักงานทุกคนในสาขานี้</span>' +
       '</div>'
@@ -1033,6 +1033,13 @@ function renderBranchInline() {
       const dateInput = document.getElementById('branchMainDate');
       const date = (dateInput && dateInput.value) || todayBKK();
       if (!date) { showToast('⚠ เลือกวันที่', true); return; }
+      // Validate year — block obvious BE / typo'd years that would silently disappear in views
+      const dy = parseInt(date.slice(0, 4), 10);
+      const ny = parseInt(todayBKK().slice(0, 4), 10);
+      if (!dy || dy < ny - 2 || dy > ny + 1) {
+        showToast('⚠ วันที่ผิด (ปี ' + dy + ') · ใช้ปี ค.ศ. (Gregorian) เช่น ' + ny, true);
+        return;
+      }
       const pt = +form.querySelector('.inline-pt').value || 0;
       const m  = +form.querySelector('.inline-member').value || 0;
       const pl = +form.querySelector('.inline-plan').value || 0;
@@ -1050,6 +1057,8 @@ function renderBranchInline() {
       };
       saveDaily();
       logSale(bid, eid, date, pt, m, pl, tr);
+      // Sync state so the picker stays on the chosen date after re-render
+      branchEntryDate = date;
       renderBranchView();
       const msg = (pt + m + pl) > 0
         ? '✓ เพิ่มยอด ฿' + fmt0(pt + m + pl) + (tr ? ' · 🏋 ' + tr + ' ครั้ง' : '') + ' · ' + empName(eid) + ' (' + date + ')'
@@ -1455,6 +1464,12 @@ function saveDailyEntry() {
   if (!activeDailyEmp) return;
   const date = document.getElementById('dailyDate').value;
   if (!date) { showToast('⚠ กรุณาเลือกวันที่', true); return; }
+  const dy = parseInt(date.slice(0, 4), 10);
+  const ny = parseInt(todayBKK().slice(0, 4), 10);
+  if (!dy || dy < ny - 2 || dy > ny + 1) {
+    showToast('⚠ วันที่ผิด (ปี ' + dy + ') · ใช้ปี ค.ศ. (Gregorian) เช่น ' + ny, true);
+    return;
+  }
   const pt = +document.getElementById('dailyPT').value||0;
   const m = +document.getElementById('dailyMember').value||0;
   const p = +document.getElementById('dailyPlan').value||0;
@@ -3723,7 +3738,7 @@ function renderRecordSalesView() {
           '<span class="emp-card-total-label">รวม ' + t.days + ' วัน</span>' +
           '<span class="emp-card-total-value">฿' + fmt0(t.total) + '</span></div>' +
           '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '">' +
-          '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
+          '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '" min="' + (parseInt(today.slice(0,4),10) - 2) + '-01-01" max="' + today + '"></div>' +
           '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.pt||'') + '"></div>' +
           '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.member||'') + '"></div>' +
           '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01" value="' + (todayEntry.plan||'') + '"></div>' +
@@ -3747,12 +3762,20 @@ function renderRecordSalesView() {
       const bid = form.dataset.bid, eid = form.dataset.eid;
       const date = form.querySelector('.inline-date').value;
       if (!date) { showToast('⚠ เลือกวันที่', true); return; }
+      const dy = parseInt(date.slice(0, 4), 10);
+      const ny = parseInt(todayBKK().slice(0, 4), 10);
+      if (!dy || dy < ny - 2 || dy > ny + 1) {
+        showToast('⚠ วันที่ผิด (ปี ' + dy + ') · ใช้ปี ค.ศ. (Gregorian) เช่น ' + ny, true);
+        return;
+      }
       const pt = +form.querySelector('.inline-pt').value||0;
       const m = +form.querySelector('.inline-member').value||0;
       const pl = +form.querySelector('.inline-plan').value||0;
       if (!DAILY[bid]) DAILY[bid] = {};
       if (!DAILY[bid][eid]) DAILY[bid][eid] = {};
-      DAILY[bid][eid][date] = { pt, member: m, plan: pl };
+      // Preserve any existing train value — only PT/MEM/PLAN are edited here
+      const prev = DAILY[bid][eid][date] || {};
+      DAILY[bid][eid][date] = { pt: pt, member: m, plan: pl, train: +prev.train || 0 };
       saveDaily();
       if (pt || m || pl) logSale(bid, eid, date, pt, m, pl);
       renderRecordSalesView();
