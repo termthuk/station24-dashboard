@@ -357,6 +357,7 @@ function filteredBranches() {
   return found.length ? found : BRANCHES;
 }
 let activeEmployee = null;
+let branchEntryDate = null;
 let activeDailyEmp = null;
 let activeEditEmp = null;
 let editEmpPhotoBase64 = '';
@@ -724,8 +725,19 @@ function renderBranchView() {
 function renderBranchInline() {
   const br = getBranch(activeBranch);
   const today = todayBKK();
+  const entryDate = branchEntryDate || today;
   const container = document.getElementById('branchEmpsContainer');
   if (!container) return;
+
+  const canEditAny = canEditBranch(br.id);
+  const dateBar = canEditAny
+    ? '<div style="display:flex;align-items:center;gap:10px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px 14px;margin-bottom:14px;flex-wrap:wrap">' +
+        '<span style="font-size:13px;font-weight:800;color:#991B1B">📅 วันที่ลงยอด:</span>' +
+        '<input type="date" id="branchMainDate" value="' + entryDate + '" style="padding:8px 12px;border:1px solid #FECACA;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#fff;color:#991B1B">' +
+        (entryDate !== today ? '<button type="button" id="branchDateResetBtn" style="padding:7px 12px;border:1px solid #FECACA;background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#991B1B">↻ วันนี้</button>' : '') +
+        '<span style="font-size:11px;color:#7F1D1D;font-weight:600">ใช้กับพนักงานทุกคนในสาขานี้</span>' +
+      '</div>'
+    : '';
 
   let html = '<div class="card">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:2px solid var(--red);margin-bottom:14px">' +
@@ -734,6 +746,7 @@ function renderBranchInline() {
     (isAdmin() ? '<button type="button" id="resetBranchSalesBtn" style="padding:7px 14px;border:1px solid #DC2626;background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;color:#DC2626" title="ล้างยอดขายทั้งหมดของสาขานี้ (Admin)">🔄 รีเซตยอด</button>' : '') +
     (canEditBranch(br.id) ? '<button type="button" id="toggleAddEmp" style="padding:7px 14px;border:1px solid var(--gray-line);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--red-dark)">⚙️ จัดการพนักงาน</button>' : '') +
     '</div></div>' +
+    dateBar +
     '<div id="addEmpPanelInline" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px;margin-bottom:14px">' +
     '<div style="font-size:13px;font-weight:700;color:var(--red-dark);margin-bottom:10px">เพิ่มพนักงานใหม่เข้าสาขา' + br.name + '</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
@@ -756,10 +769,12 @@ function renderBranchInline() {
       const team = e.team || 'A';
       const teamColor = team === 'A' ? { bg:'#FEF3C7', text:'#92400E' } : { bg:'#DBEAFE', text:'#1E40AF' };
       const isPT = isPosPT(pos);
-      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][today]) || {pt:0,member:0,plan:0,train:0};
+      const todayEntry = (DAILY[br.id] && DAILY[br.id][e.id] && DAILY[br.id][e.id][entryDate]) || {pt:0,member:0,plan:0,train:0};
       const todayPT = +todayEntry.pt || 0, todayMEM = +todayEntry.member || 0, todayPLAN = +todayEntry.plan || 0;
       const todayTrain = +todayEntry.train || 0;
       const todayTotal = todayPT + todayMEM + todayPLAN;
+      const isToday = entryDate === today;
+      const dateLabel = isToday ? 'วันนี้' : 'วันที่ ' + entryDate;
       const mtdPTMem = empMTDPTMem(br.id, e.id, today);
       const kpiTarget = monthlyKPITarget(today);
       const belowQuota = mtdPTMem < kpiTarget;
@@ -777,10 +792,10 @@ function renderBranchInline() {
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(kpiTarget) + '</span></div>'
         : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">เดือนนี้ ฿' + fmt0(mtdPTMem) + '</span></div>';
       const todayBadge = todayTotal > 0
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 วันนี้บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 ' + dateLabel + 'บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
         : '';
       const trainBadge = isPT && todayTrain > 0
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรนวันนี้</span><span style="color:#78350F;font-weight:800">' + fmtInt(todayTrain) + ' ครั้ง</span></div>'
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรน' + dateLabel + '</span><span style="color:#78350F;font-weight:800">' + fmtInt(todayTrain) + ' ครั้ง</span></div>'
         : '';
       const canEdit = canEditBranch(br.id);
       const teamCtl = canEdit
@@ -803,7 +818,6 @@ function renderBranchInline() {
         : '';
       const salesForm = canEdit
         ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '" data-ispt="' + (isPT ? '1' : '0') + '">' +
-            '<div class="inline-date-row"><label>📅</label><input type="date" class="inline-date" value="' + today + '"></div>' +
             quotaBadge + todayBadge + trainBadge +
             '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01"></div>' +
             '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01"></div>' +
@@ -861,6 +875,21 @@ function renderBranchInline() {
 
   html += '</div>';
   container.innerHTML = html;
+
+  const mainDateInput = document.getElementById('branchMainDate');
+  if (mainDateInput) {
+    mainDateInput.onchange = () => {
+      branchEntryDate = mainDateInput.value || null;
+      renderBranchView();
+    };
+  }
+  const dateResetBtn = document.getElementById('branchDateResetBtn');
+  if (dateResetBtn) {
+    dateResetBtn.onclick = () => {
+      branchEntryDate = null;
+      renderBranchView();
+    };
+  }
 
   const toggleBtn = document.getElementById('toggleAddEmp');
   if (toggleBtn) {
@@ -941,7 +970,8 @@ function renderBranchInline() {
       const form = btn.closest('.inline-sales-form');
       const bid = form.dataset.bid, eid = form.dataset.eid;
       const isPT = form.dataset.ispt === '1';
-      const date = form.querySelector('.inline-date').value;
+      const dateInput = document.getElementById('branchMainDate');
+      const date = (dateInput && dateInput.value) || todayBKK();
       if (!date) { showToast('⚠ เลือกวันที่', true); return; }
       const pt = +form.querySelector('.inline-pt').value || 0;
       const m  = +form.querySelector('.inline-member').value || 0;
