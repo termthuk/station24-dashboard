@@ -816,7 +816,6 @@ function renderBranchInline() {
       const trainInputRow = isPT
         ? '<div class="inline-input-row"><span class="inline-label" style="background:#FEF3C7;color:#92400E">🏋 เทรน</span><input type="number" class="inline-train" placeholder="0" min="0" step="1"></div>'
         : '';
-      const historyBtn = '<button type="button" class="emp-card-btn emp-history-btn" data-emp-history="' + e.id + '" style="margin-top:8px;background:#fff;color:var(--red-dark);border:1px solid var(--red);font-size:12px">📆 ดูยอดย้อนหลัง</button>';
       const salesForm = canEdit
         ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '" data-ispt="' + (isPT ? '1' : '0') + '">' +
             quotaBadge + todayBadge + trainBadge +
@@ -825,9 +824,8 @@ function renderBranchInline() {
             '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01"></div>' +
             trainInputRow +
             '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
-            historyBtn +
           '</div>'
-        : (quotaBadge + todayBadge + trainBadge + historyBtn);
+        : (quotaBadge + todayBadge + trainBadge);
       return '<div class="emp-card" style="' + cardStyle + '">' +
         editBtns +
         '<div class="emp-card-header">' + avatarHTML(e) +
@@ -944,10 +942,6 @@ function renderBranchInline() {
 
   container.querySelectorAll('[data-emp-edit]').forEach(btn => {
     btn.onclick = ev => { ev.stopPropagation(); openEditEmpModal(btn.dataset.empEdit); };
-  });
-
-  container.querySelectorAll('[data-emp-history]').forEach(btn => {
-    btn.onclick = ev => { ev.stopPropagation(); openDailyModal(btn.dataset.empHistory); };
   });
 
   container.querySelectorAll('.inline-team-select').forEach(sel => {
