@@ -470,6 +470,7 @@ function setView(v) {
   if(document.getElementById('rankingTrainerView'))document.getElementById('rankingTrainerView').style.display = v === 'rankingtrainer' ? 'block' : 'none';
   if(document.getElementById('usersView'))document.getElementById('usersView').style.display = v === 'users' ? 'block' : 'none';
   if(document.getElementById('adExpensesView'))document.getElementById('adExpensesView').style.display = v === 'adexpenses' ? 'block' : 'none';
+  if(document.getElementById('empAnalysisView'))document.getElementById('empAnalysisView').style.display = v === 'empanalysis' ? 'block' : 'none';
   if(document.getElementById('branchListSection'))document.getElementById('branchListSection').style.display = 'block';
   // Editors are restricted to their branch view only
   if (isEditor() && v !== 'branch') {
@@ -477,7 +478,7 @@ function setView(v) {
     v = 'branch';
     currentView = v;
     if(document.getElementById('branchView'))document.getElementById('branchView').style.display = 'block';
-    ['overviewView','recordSalesView','summaryChartView','yearSalesView','yearTrainView','historyView','rankingView','rankingAllView','rankingTrainerView','usersView','adExpensesView'].forEach(id => {
+    ['overviewView','recordSalesView','summaryChartView','yearSalesView','yearTrainView','historyView','rankingView','rankingAllView','rankingTrainerView','usersView','adExpensesView','empAnalysisView'].forEach(id => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
   }
@@ -499,6 +500,7 @@ function setView(v) {
   else if (v === 'rankingtrainer') renderRankingTrainerView();
   else if (v === 'users') renderUsersView();
   else if (v === 'adexpenses') renderAdExpensesView();
+  else if (v === 'empanalysis') renderEmpAnalysisView();
 }
 
 function renderMenuNav() {
@@ -518,6 +520,7 @@ function renderMenuNav() {
   html +=
     '<button class="menu-item ' + (currentView==='yearsales'?'active':'') + '" data-view="yearsales"><span class="menu-item-icon">📅</span><span>ยอดขายสะสม 1 ปี</span></button>' +
     '<button class="menu-item ' + (currentView==='yeartrain'?'active':'') + '" data-view="yeartrain"><span class="menu-item-icon">🏋</span><span>ยอดเทรนสะสม 1 ปี</span></button>' +
+    '<button class="menu-item ' + (currentView==='empanalysis'?'active':'') + '" data-view="empanalysis"><span class="menu-item-icon">🔍</span><span>วิเคราะห์รายบุคคล</span></button>' +
     '<button class="menu-item ' + (currentView==='history'?'active':'') + '" data-view="history"><span class="menu-item-icon">📅</span><span>ประวัติการขาย</span></button>';
   if (isAdmin()) {
     html += '<button class="menu-item ' + (currentView==='adexpenses'?'active':'') + '" data-view="adexpenses"><span class="menu-item-icon">📣</span><span>ค่าใช้จ่ายโฆษณา</span></button>';
@@ -2958,6 +2961,220 @@ function renderYearTrainView() {
     if (p) { ytRange = p; renderYearTrainView(); }
   };
   if (reset)  reset.onclick   = () => { ytRange = oneYearRangeBKK(); renderYearTrainView(); };
+}
+
+// ===== Employee analysis view (per-person, split by Sale / Trainer) =====
+let eaRange = oneYearRangeBKK();
+let eaRole = 'sale';
+
+function renderEmpAnalysisView() {
+  renderSidebar();
+  const r = eaRange;
+  const today = todayBKK();
+  const isTrainer = eaRole === 'trainer';
+  const branchesView = filteredBranches();
+
+  const fromStr = r.from || '1970-01-01';
+  const toStr = r.to || today;
+  const daysInRange = Math.max(1, Math.round((new Date(toStr) - new Date(fromStr)) / 86400000) + 1);
+  const cappedDays = Math.min(daysInRange, 365);
+  const SALE_KPI_RANGE = DAILY_QUOTA * cappedDays;
+  const TRAINER_KPI_RANGE = Math.round(TRAIN_KPI * (cappedDays / 365));
+
+  const all = branchesView.flatMap(br =>
+    br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
+      .map(e => ({ emp: e, branch: br, totals: empTotalsInRange(br.id, e.id, r) }))
+  );
+
+  const analysis = all.map(x => {
+    const t = x.totals;
+    const primary = isTrainer ? t.train : (t.pt + t.member);
+    const kpi = isTrainer ? TRAINER_KPI_RANGE : SALE_KPI_RANGE;
+    const achievement = kpi > 0 ? Math.round(primary * 100 / kpi) : 0;
+    return { ...x, primary, kpi, achievement };
+  }).sort((a, b) => b.achievement - a.achievement);
+
+  const totalCount = analysis.length;
+  const passedCount = analysis.filter(x => x.achievement >= 100).length;
+  const passRate = totalCount ? Math.round(passedCount * 100 / totalCount) : 0;
+  const sumPrimary = analysis.reduce((s, x) => s + x.primary, 0);
+  const avgPrimary = totalCount ? Math.round(sumPrimary / totalCount) : 0;
+
+  const rangeLabel = (r.from || r.to)
+    ? thaiDate(fromStr) + ' — ' + thaiDate(toStr) + ' (' + daysInRange + ' วัน)'
+    : 'ทั้งหมด';
+
+  const accent = (a) => a >= 100 ? '#16A34A' : a >= 80 ? '#D97706' : a >= 50 ? '#DC2626' : '#7F1D1D';
+  const badge = (a) => a >= 100 ? '✅ ผ่าน KPI' : a >= 80 ? '⚠ ใกล้ผ่าน' : a >= 50 ? '⚠ ต่ำกว่า KPI' : '🚨 ต่ำกว่ามาก';
+
+  const saleDiag = (t, ach) => {
+    const issues = [], strengths = [];
+    if (ach >= 100) strengths.push('ผ่าน KPI ' + ach + '%');
+    if (t.days >= daysInRange * 0.7) strengths.push('ลงข้อมูลสม่ำเสมอ');
+    else if (t.days > 0 && t.days < daysInRange * 0.3) issues.push('ลงข้อมูลน้อย ' + t.days + '/' + daysInRange + ' วัน');
+    if (t.pt + t.member === 0) issues.push('ไม่มียอด PT/MEMBER เลย');
+    else {
+      const ratio = (t.pt + t.member) > 0 ? t.pt / (t.pt + t.member) : 0;
+      if (t.member === 0) issues.push('ไม่มียอด MEMBER');
+      else if (t.pt === 0) issues.push('ไม่มียอด PT');
+      else if (ratio > 0.8) issues.push('PT เด่น (' + Math.round(ratio*100) + '%) MEMBER น้อย');
+      else if (ratio < 0.2) issues.push('MEMBER เด่น (' + Math.round((1-ratio)*100) + '%) PT น้อย');
+      else strengths.push('ขายสมดุล PT/MEMBER');
+    }
+    if (t.plan === 0) issues.push('ไม่มีขาย Plan SETUP');
+    else strengths.push('มีขาย Plan SETUP');
+    return { issues, strengths };
+  };
+  const saleSug = (t, ach) => {
+    const s = [];
+    if (ach < 100) s.push('🎯 ตั้งเป้ารายวัน ฿' + fmt0(DAILY_QUOTA) + ' · โทร follow-up ลูกค้าเก่า');
+    if (t.days < daysInRange * 0.5) s.push('📝 ลงข้อมูลให้ครบทุกวันก่อนปิดร้าน');
+    const ratio = (t.pt + t.member) > 0 ? t.pt / (t.pt + t.member) : 0;
+    if (t.member === 0 || ratio > 0.8) s.push('🎫 อบรมขาย MEMBER package เพิ่ม / ใช้โปรโมชั่นรายเดือน');
+    if (t.pt === 0 || ratio < 0.2) s.push('💪 Upsell PT package หลังลูกค้าซื้อ MEMBER');
+    if (t.plan === 0) s.push('📋 เสนอ Plan SETUP เป็น add-on');
+    if (!s.length) s.push('🎉 รักษาฟอร์มไว้ + ช่วย coach เพื่อนทีม');
+    return s;
+  };
+  const trainerDiag = (t, ach) => {
+    const issues = [], strengths = [];
+    if (ach >= 100) strengths.push('ผ่าน KPI ' + ach + '%');
+    if (t.days >= daysInRange * 0.5) strengths.push('เทรนสม่ำเสมอ ' + t.days + ' วัน');
+    else if (t.days > 0 && t.days < daysInRange * 0.2) issues.push('เทรนเฉพาะบางวัน ' + t.days + '/' + daysInRange);
+    if (t.train === 0) issues.push('ยังไม่มีบันทึกเทรนเลย');
+    else if (t.days > 0) {
+      const perDay = t.train / t.days;
+      if (perDay >= 5) strengths.push('เฉลี่ย ' + perDay.toFixed(1) + ' ครั้ง/วันเทรน');
+      else if (perDay < 2) issues.push('เฉลี่ยเทรน/วันต่ำ ' + perDay.toFixed(1));
+    }
+    if (t.pt === 0) issues.push('ไม่มียอดขาย PT — ขาดรายได้เสริม');
+    else strengths.push('มียอดขาย PT ฿' + fmt0(t.pt));
+    return { issues, strengths };
+  };
+  const trainerSug = (t, ach) => {
+    const s = [];
+    if (ach < 100) s.push('🎯 mini-KPI ' + Math.ceil(TRAIN_KPI / 52) + ' ครั้ง/สัปดาห์');
+    if (t.days < daysInRange * 0.3) s.push('📝 ลงข้อมูลเทรนทุกครั้งหลังจบ session');
+    if (t.days > 0 && (t.train / t.days) < 3) s.push('📞 จัด schedule ให้แน่น · follow-up no-show ใน 24 ชม.');
+    if (t.pt === 0) s.push('💪 Cross-sell PT package ให้ลูกค้าประจำของตน');
+    if (!s.length) s.push('🎉 ผลงานดี · ทำ Buddy coach เพื่อน trainer');
+    return s;
+  };
+
+  const exportName = isTrainer ? 'Station24_วิเคราะห์เทรนเนอร์' : 'Station24_วิเคราะห์เซลล์';
+  let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
+    '</div>' +
+    yearFilterBarHTML('ea', r) +
+    '<div class="card no-capture" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px">' +
+      '<button type="button" id="eaTabSale" class="' + (!isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (!isTrainer?'#DC2626':'var(--gray-line)') + ';background:' + (!isTrainer?'#DC2626':'#fff') + ';color:' + (!isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🧑‍💼 Sale</button>' +
+      '<button type="button" id="eaTabTrainer" class="' + (isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (isTrainer?'#16A34A':'var(--gray-line)') + ';background:' + (isTrainer?'#16A34A':'#fff') + ';color:' + (isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🏋 เทรนเนอร์</button>' +
+    '</div>' +
+    '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">' +
+      '<div style="background:linear-gradient(135deg,' + (isTrainer?'#16A34A,#15803D':'#DC2626,#991B1B') + ');color:#fff;border-radius:12px;padding:14px 16px">' +
+        '<div style="font-size:11px;font-weight:700;opacity:0.9">' + (isTrainer?'🏋 จำนวนเทรนเนอร์':'🧑‍💼 จำนวน Sale') + '</div>' +
+        '<div style="font-size:24px;font-weight:900;margin-top:2px">' + totalCount + ' <span style="font-size:13px;font-weight:700;opacity:0.9">คน</span></div>' +
+        '<div style="font-size:11px;opacity:0.85;margin-top:2px">ใน ' + branchesView.length + ' สาขา</div>' +
+      '</div>' +
+      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #16A34A;border-radius:12px;padding:14px 16px">' +
+        '<div style="font-size:11px;font-weight:700;color:#166534">✅ ผ่าน KPI</div>' +
+        '<div style="font-size:24px;font-weight:900;color:#166534;margin-top:2px">' + passedCount + '/' + totalCount + ' <span style="font-size:13px;color:var(--gray-text)">(' + passRate + '%)</span></div>' +
+        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">เกณฑ์ ' + (isTrainer ? fmtInt(TRAINER_KPI_RANGE) + ' ครั้ง' : '฿' + fmt0(SALE_KPI_RANGE)) + '</div>' +
+      '</div>' +
+      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:14px 16px">' +
+        '<div style="font-size:11px;font-weight:700;color:#991B1B">📊 เฉลี่ย/คน</div>' +
+        '<div style="font-size:24px;font-weight:900;color:#991B1B;margin-top:2px">' + (isTrainer ? fmtInt(avgPrimary) + ' ครั้ง' : '฿' + fmt0(avgPrimary)) + '</div>' +
+        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">ในช่วงที่เลือก</div>' +
+      '</div>' +
+      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #1F2937;border-radius:12px;padding:14px 16px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1F2937">🗓 ช่วง</div>' +
+        '<div style="font-size:13px;font-weight:900;color:#1F2937;margin-top:4px;line-height:1.3">' + rangeLabel + '</div>' +
+      '</div>' +
+    '</div>';
+
+  if (!analysis.length) {
+    html += '<div class="card"><div style="text-align:center;color:var(--gray-text);padding:40px">— ไม่มี' + (isTrainer?'เทรนเนอร์':'Sale') + 'ในช่วงนี้ —</div></div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">' +
+      analysis.map(x => {
+        const t = x.totals;
+        const ac = accent(x.achievement);
+        const bg = x.achievement >= 100 ? '#F0FDF4' : x.achievement >= 50 ? '#FFFBEB' : '#FEF2F2';
+        const av = x.emp.photo
+          ? '<img src="' + x.emp.photo + '" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + ac + '">'
+          : '<div style="width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(x.emp.id) + ';flex-shrink:0;border:2px solid ' + ac + '">' + avatarInitials(x.emp.name) + '</div>';
+        const diag = isTrainer ? trainerDiag(t, x.achievement) : saleDiag(t, x.achievement);
+        const sug = isTrainer ? trainerSug(t, x.achievement) : saleSug(t, x.achievement);
+        const barPct = Math.min(x.achievement, 100);
+        return '<div class="card" style="background:' + bg + ';border:1px solid ' + ac + ';border-radius:12px;padding:14px 16px;margin-bottom:0">' +
+          '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' + av +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:15px;font-weight:800;color:#0F0F0F">' + x.emp.name + '</div>' +
+              '<div style="font-size:11px;color:var(--gray-text);font-weight:600">' + x.branch.emoji + ' ' + x.branch.name + ' · ' + (x.emp.position || '—') + '</div>' +
+            '</div>' +
+            '<div style="text-align:right">' +
+              '<div style="font-size:11px;color:' + ac + ';font-weight:700">' + badge(x.achievement) + '</div>' +
+              '<div style="font-size:20px;font-weight:900;color:' + ac + '">' + x.achievement + '%</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="background:#fff;border-radius:8px;height:10px;overflow:hidden;border:1px solid #E5E7EB;margin-bottom:10px">' +
+            '<div style="width:' + barPct + '%;height:100%;background:linear-gradient(90deg,' + ac + ',' + ac + 'cc)"></div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(' + (isTrainer?'4':'4') + ',1fr);gap:5px;font-size:10px;margin-bottom:10px">' +
+            (isTrainer
+              ? '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#92400E;font-weight:700">🏋 เทรน</div><div style="font-weight:800;font-size:12px">' + fmtInt(t.train) + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📊 /วัน</div><div style="font-weight:800;font-size:12px">' + (t.days ? (t.train/t.days).toFixed(1) : '0') + '</div></div>'
+              : '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#1F1F1F;font-weight:700">🎫 MEM</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.member) + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#D97706;font-weight:700">📋 PLAN</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.plan) + '</div></div>' +
+                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>'
+            ) +
+          '</div>' +
+          (diag.strengths.length
+            ? '<div style="background:#DCFCE7;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
+                '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:4px">💪 จุดแข็ง</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+                diag.strengths.map(s => '<span style="background:#fff;border:1px solid #86EFAC;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
+                '</div></div>'
+            : '') +
+          (diag.issues.length
+            ? '<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
+                '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:4px">⚠ จุดอ่อน / ที่ต้องปรับปรุง</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+                diag.issues.map(s => '<span style="background:#fff;border:1px solid #FCA5A5;color:#991B1B;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
+                '</div></div>'
+            : '') +
+          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 10px">' +
+            '<div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:4px">🛠 คำแนะนำ</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.6">' +
+            sug.map(s => '<li>' + s + '</li>').join('') +
+            '</ul></div>' +
+          '</div>';
+      }).join('') +
+      '</div>';
+  }
+
+  const container = document.getElementById('empAnalysisContainer');
+  container.innerHTML = html;
+  bindViewExportButtons(container);
+
+  document.getElementById('eaTabSale').onclick = () => { eaRole = 'sale'; renderEmpAnalysisView(); };
+  document.getElementById('eaTabTrainer').onclick = () => { eaRole = 'trainer'; renderEmpAnalysisView(); };
+  const eFromIn = document.getElementById('eaFrom');
+  const eToIn = document.getElementById('eaTo');
+  const ePresetSel = document.getElementById('eaPreset');
+  const eResetBtn = document.getElementById('eaReset');
+  if (eFromIn) eFromIn.onchange = () => { eaRange = { from: eFromIn.value, to: eaRange.to }; renderEmpAnalysisView(); };
+  if (eToIn)   eToIn.onchange   = () => { eaRange = { from: eaRange.from, to: eToIn.value }; renderEmpAnalysisView(); };
+  if (ePresetSel) ePresetSel.onchange = () => {
+    const p = presetRange(ePresetSel.value);
+    if (p) { eaRange = p; renderEmpAnalysisView(); }
+  };
+  if (eResetBtn) eResetBtn.onclick = () => { eaRange = oneYearRangeBKK(); renderEmpAnalysisView(); };
 }
 
 // ===== Record Sales view (all employees with inline forms) =====
