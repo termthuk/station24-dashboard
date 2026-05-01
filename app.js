@@ -769,21 +769,31 @@ function renderBranchInline() {
   const hasRange = !!(sr.from || sr.to);
   const rangeLabel = hasRange
     ? thaiDate(sr.from || '1970-01-01') + ' — ' + thaiDate(sr.to || todayBKK())
-    : 'ทั้งหมด';
-  let brPT = 0, brMEM = 0, brTrain = 0, brPlan = 0;
+    : 'ทั้งหมด (รวมทุกช่วง)';
+  let brPT = 0, brMEM = 0, brTrain = 0, brPlan = 0, brDays = new Set();
   br.employees.forEach(e => {
     const tt = empTotalsInRange(br.id, e.id, sr);
     brPT += tt.pt; brMEM += tt.member; brPlan += tt.plan;
     if (isPosPT(e.position)) brTrain += tt.train;
+    const es = (DAILY[br.id] && DAILY[br.id][e.id]) || {};
+    Object.keys(es).forEach(d => {
+      if (sr.from && d < sr.from) return;
+      if (sr.to && d > sr.to) return;
+      brDays.add(d);
+    });
   });
+  const brTrainers = br.employees.filter(e => isPosPT(e.position)).length;
   html += yearFilterBarHTML('br', sr, '↺ ทั้งหมด');
-  html += '<div class="card no-capture" style="background:linear-gradient(135deg,#FEF2F2,#fff);border:1px solid #FECACA;border-radius:12px;padding:14px 18px;margin-bottom:14px">' +
-    '<div style="font-size:11px;color:#7F1D1D;font-weight:700;margin-bottom:8px">📊 สรุปสาขา' + br.name + ' · ช่วง: <strong>' + rangeLabel + '</strong></div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">' +
-      '<div style="background:#fff;border-left:4px solid #DC2626;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#991B1B;font-weight:700">💪 รวม PT</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brPT) + '</div></div>' +
-      '<div style="background:#fff;border-left:4px solid #1F1F1F;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#1F1F1F;font-weight:700">🎫 รวม MEMBER</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brMEM) + '</div></div>' +
-      '<div style="background:#fff;border-left:4px solid #16A34A;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#166534;font-weight:700">💰 PT + MEMBER</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brPT + brMEM) + '</div></div>' +
-      '<div style="background:#fff;border-left:4px solid #92400E;padding:10px 12px;border-radius:8px"><div style="font-size:11px;color:#92400E;font-weight:700">🏋 จำนวนเทรน</div><div style="font-size:18px;font-weight:900;color:#0F0F0F;margin-top:2px">' + fmtInt(brTrain) + ' <span style="font-size:11px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div></div>' +
+  html += '<div class="card no-capture" style="background:linear-gradient(135deg,#FEF2F2,#fff);border:2px solid #FECACA;border-radius:14px;padding:16px 20px;margin-bottom:14px;box-shadow:0 1px 4px rgba(220,38,38,0.06)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px dashed #FECACA">' +
+      '<div style="font-size:14px;color:#991B1B;font-weight:800">📊 ยอดรวม PT + MEMBER และจำนวนเทรน <span style="color:#7F1D1D;font-weight:600">(ตามช่วงที่เลือก)</span></div>' +
+      '<div style="font-size:11px;color:#7F1D1D;font-weight:700">🗓 ' + rangeLabel + ' · ' + brDays.size + ' วันมีบันทึก</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">' +
+      '<div style="background:#fff;border-left:4px solid #DC2626;padding:12px 14px;border-radius:10px"><div style="font-size:11px;color:#991B1B;font-weight:700">💪 รวม PT</div><div style="font-size:20px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brPT) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #1F1F1F;padding:12px 14px;border-radius:10px"><div style="font-size:11px;color:#1F1F1F;font-weight:700">🎫 รวม MEMBER</div><div style="font-size:20px;font-weight:900;color:#0F0F0F;margin-top:2px">฿' + fmt0(brMEM) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #16A34A;padding:12px 14px;border-radius:10px"><div style="font-size:11px;color:#166534;font-weight:700">💰 PT + MEMBER (รวม)</div><div style="font-size:20px;font-weight:900;color:#16A34A;margin-top:2px">฿' + fmt0(brPT + brMEM) + '</div></div>' +
+      '<div style="background:#fff;border-left:4px solid #92400E;padding:12px 14px;border-radius:10px"><div style="font-size:11px;color:#92400E;font-weight:700">🏋 จำนวนเทรน</div><div style="font-size:20px;font-weight:900;color:#92400E;margin-top:2px">' + fmtInt(brTrain) + ' <span style="font-size:12px;font-weight:700;color:var(--gray-text)">ครั้ง</span></div><div style="font-size:10px;color:var(--gray-text);margin-top:1px">จาก ' + brTrainers + ' เทรนเนอร์</div></div>' +
     '</div>' +
   '</div>';
 
