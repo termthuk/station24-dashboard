@@ -1991,6 +1991,7 @@ function renderAddSalesView() {
 // ===== Summary Chart view — split by branch =====
 let scBranchCharts = {};
 let scRange = { from: '', to: '' };
+let scShowAnalysis = false;
 function renderSummaryChartView() {
   renderSidebar();
   const container = document.getElementById('summaryChartView');
@@ -2006,7 +2007,10 @@ function renderSummaryChartView() {
 
   let html = '<div class="main-title-row">' +
     '<h2 class="main-title"><span>📊</span><span>กราฟสรุปยอดขาย (แยกตามสาขา)</span></h2>' +
-    '<div style="font-size:12px;color:var(--gray-text)">ช่วง: <strong style="color:var(--red-dark)">' + rangeLabel + '</strong></div>' +
+    '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+      '<div style="font-size:12px;color:var(--gray-text)">ช่วง: <strong style="color:var(--red-dark)">' + rangeLabel + '</strong></div>' +
+      '<button type="button" id="scToggleAnalysis" class="no-capture" style="padding:8px 14px;border:1px solid #7C3AED;background:' + (scShowAnalysis ? '#7C3AED' : '#fff') + ';color:' + (scShowAnalysis ? '#fff' : '#7C3AED') + ';border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800">🧠 วิเคราะห์ SKU ' + (scShowAnalysis ? '(ซ่อน)' : '(แสดง)') + '</button>' +
+    '</div>' +
     '</div>';
   html += yearFilterBarHTML('sc', sr, '↺ ทั้งหมด');
 
@@ -2121,6 +2125,10 @@ function renderSummaryChartView() {
       ) +
       '</div>';
   });
+
+  if (scShowAnalysis) {
+    html += renderSCAnalysisHTML(scRange);
+  }
 
   container.innerHTML = html;
 
@@ -2391,6 +2399,148 @@ function renderSummaryChartView() {
     if (p) { scRange = p; renderSummaryChartView(); }
   };
   if (scResetBtn) scResetBtn.onclick = () => { scRange = { from: '', to: '' }; renderSummaryChartView(); };
+
+  // SKU analysis toggle
+  const scAnalysisBtn = document.getElementById('scToggleAnalysis');
+  if (scAnalysisBtn) scAnalysisBtn.onclick = () => { scShowAnalysis = !scShowAnalysis; renderSummaryChartView(); };
+}
+
+// ===== SKU analysis (branch-level) for Summary Chart view =====
+function renderSCAnalysisHTML(range) {
+  const branches = filteredBranches();
+  const allEmps = [];
+  const branchData = branches.map(br => {
+    const empsA = br.employees.filter(e => (e.team || 'A') === 'A')
+      .map(e => { const t = empTotalsInRange(br.id, e.id, range); return { emp: e, branch: br, team: 'A', ...t, total: t.pt + t.member }; });
+    const empsB = br.employees.filter(e => (e.team || 'A') === 'B')
+      .map(e => { const t = empTotalsInRange(br.id, e.id, range); return { emp: e, branch: br, team: 'B', ...t, total: t.pt + t.member }; });
+    const all = empsA.concat(empsB);
+    allEmps.push.apply(allEmps, all);
+    return {
+      branch: br, empsA: empsA, empsB: empsB, all: all,
+      totA: empsA.reduce((s, x) => s + x.total, 0),
+      totB: empsB.reduce((s, x) => s + x.total, 0),
+      total: all.reduce((s, x) => s + x.total, 0),
+      pt: all.reduce((s, x) => s + x.pt, 0),
+      member: all.reduce((s, x) => s + x.member, 0),
+      plan: all.reduce((s, x) => s + x.plan, 0)
+    };
+  });
+  const grandTotal = branchData.reduce((s, b) => s + b.total, 0);
+  const branchSorted = branchData.slice().sort((a, b) => b.total - a.total);
+  const empSorted = allEmps.slice().sort((a, b) => b.total - a.total);
+
+  const findings = [];
+  const fixes = [];
+  const weaknesses = [];
+
+  // Branch ranking
+  if (branchSorted.length >= 2 && branchSorted[0].total > 0) {
+    const top = branchSorted[0];
+    const bottom = branchSorted[branchSorted.length - 1];
+    findings.push('🥇 สาขา <strong>' + top.branch.emoji + ' ' + top.branch.name + '</strong> ทำยอดสูงสุด ฿' + fmt0(top.total));
+    if (bottom.total < top.total) {
+      const gap = top.total - bottom.total;
+      findings.push('🚨 สาขา <strong>' + bottom.branch.emoji + ' ' + bottom.branch.name + '</strong> ต่ำสุด ฿' + fmt0(bottom.total) + ' · ห่าง ฿' + fmt0(gap) + ' (' + Math.round(gap*100/top.total) + '%)');
+      if (bottom.total === 0) {
+        weaknesses.push(bottom.branch.emoji + ' ' + bottom.branch.name + ' ไม่มียอดในช่วงนี้');
+        fixes.push('ส่งคนจากสาขา ' + top.branch.name + ' ไป coach สาขา ' + bottom.branch.name);
+      }
+    }
+  }
+
+  // Team A vs B per branch
+  branchData.forEach(b => {
+    if (b.empsA.length === 0 || b.empsB.length === 0) return;
+    const total = b.totA + b.totB;
+    if (total === 0) return;
+    const ratio = b.totA / total;
+    if (ratio > 0.7) findings.push('⚖ ' + b.branch.emoji + ' ' + b.branch.name + ' · ทีม A ทำ ' + Math.round(ratio*100) + '% — ทีม B ตามไม่ทัน');
+    else if (ratio < 0.3) findings.push('⚖ ' + b.branch.emoji + ' ' + b.branch.name + ' · ทีม B ทำ ' + Math.round((1-ratio)*100) + '% — ทีม A ตามไม่ทัน');
+  });
+
+  // Top / Bottom employees with data
+  const withSales = empSorted.filter(x => x.total > 0);
+  const top3 = withSales.slice(0, 3);
+  const bottom3 = withSales.slice(-3).reverse();
+  if (top3.length) {
+    findings.push('🏆 Top 3 รายบุคคล: ' + top3.map(x => '<strong>' + x.emp.name + '</strong> (' + x.branch.name + ' ฿' + fmtShort(x.total) + ')').join(' · '));
+  }
+  if (bottom3.length && withSales.length > 3) {
+    weaknesses.push('🔻 ยอดต่ำสุด: ' + bottom3.map(x => x.emp.name + ' (' + x.branch.name + ' ฿' + fmtShort(x.total) + ')').join(' · '));
+    fixes.push('🤝 จับคู่ Top 3 ↔ Bottom 3 (Buddy coach 1 สัปดาห์)');
+  }
+
+  // No-sale employees
+  const noSale = allEmps.filter(x => x.total === 0);
+  if (noSale.length && grandTotal > 0) {
+    weaknesses.push(noSale.length + ' คนยังไม่มียอดในช่วงนี้ — เช็กว่าทำงานอยู่หรือลืมลงข้อมูล');
+  }
+
+  // Overall PT vs MEMBER
+  const totPT = branchData.reduce((s, b) => s + b.pt, 0);
+  const totMEM = branchData.reduce((s, b) => s + b.member, 0);
+  if (totPT + totMEM > 0) {
+    const ratio = totPT / (totPT + totMEM);
+    if (ratio > 0.7) {
+      findings.push('💪 PT มีสัดส่วน ' + Math.round(ratio*100) + '% (MEMBER ' + Math.round((1-ratio)*100) + '%) — เน้น PT มากเกิน');
+      weaknesses.push('สัดส่วน MEMBER ต่ำ — ขาด recurring revenue');
+      fixes.push('🎫 อบรมขาย MEMBER package · เน้น value แบบรายเดือน');
+    } else if (ratio < 0.3) {
+      findings.push('🎫 MEMBER มีสัดส่วน ' + Math.round((1-ratio)*100) + '% (PT ' + Math.round(ratio*100) + '%) — เน้น MEMBER มากเกิน');
+      weaknesses.push('สัดส่วน PT ต่ำ — เสียโอกาส commission');
+      fixes.push('💪 อบรม upsell PT package หลังขาย MEMBER');
+    } else {
+      findings.push('⚖ PT/MEMBER สมดุล (' + Math.round(ratio*100) + '/' + Math.round((1-ratio)*100) + ')');
+    }
+  }
+
+  // Plan setup
+  const totPlan = branchData.reduce((s, b) => s + b.plan, 0);
+  if (totPlan === 0 && grandTotal > 0) {
+    weaknesses.push('Plan SETUP = 0 ทุกสาขา — พลาด add-on revenue ทุก contract');
+    fixes.push('📋 รวม Plan SETUP เข้า package ทุกครั้งโดยไม่ต้องถาม');
+  } else if (totPlan > 0 && grandTotal > 0) {
+    const planRatio = totPlan / grandTotal;
+    if (planRatio < 0.05) fixes.push('📋 Plan SETUP เป็นเพียง ' + (planRatio*100).toFixed(1) + '% ของยอด — เพิ่มเป็น 10%+');
+  }
+
+  // Empty state
+  if (grandTotal === 0) {
+    findings.push('🚨 ไม่มียอดขายในช่วงนี้เลย');
+    weaknesses.push('ข้อมูลว่าง — ลองเปลี่ยนช่วงเวลาหรือเช็กว่าได้บันทึกครบแล้ว');
+  }
+
+  if (!findings.length) findings.push('— ไม่พบประเด็นเด่น —');
+  if (!fixes.length) fixes.push('🎉 ภาพรวมดี · รักษาฟอร์มไว้ + ทำ Buddy coach');
+  if (!weaknesses.length) weaknesses.push('— ไม่พบจุดอ่อนชัดเจน —');
+
+  return '<div class="card" style="margin-bottom:16px;border:2px dashed #7C3AED;padding:16px 18px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:10px;margin-bottom:14px;border-bottom:2px solid #7C3AED">' +
+      '<h3 style="margin:0;border:none;padding:0;color:#5B21B6"><span>🧠</span> วิเคราะห์ SKU จากกราฟสรุปยอดขาย</h3>' +
+      '<div style="font-size:11px;color:#7C3AED;font-weight:700">รวม ' + allEmps.length + ' คน · ' + branches.length + ' สาขา · ฿' + fmt0(grandTotal) + '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">' +
+      '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:12px 14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#991B1B;margin-bottom:8px">🔍 สิ่งที่พบ</div>' +
+        '<ul style="margin:0;padding-left:20px;font-size:12px;color:#1F2937;line-height:1.8">' +
+        findings.map(s => '<li>' + s + '</li>').join('') +
+        '</ul>' +
+      '</div>' +
+      '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:12px 14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#166534;margin-bottom:8px">🛠 คำแนะนำและวิธีแก้ไข</div>' +
+        '<ul style="margin:0;padding-left:20px;font-size:12px;color:#1F2937;line-height:1.8">' +
+        fixes.map(s => '<li>' + s + '</li>').join('') +
+        '</ul>' +
+      '</div>' +
+      '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:12px 14px">' +
+        '<div style="font-size:13px;font-weight:800;color:#92400E;margin-bottom:8px">⚠ จุดอ่อนที่พลาดและการปรับปรุง</div>' +
+        '<ul style="margin:0;padding-left:20px;font-size:12px;color:#1F2937;line-height:1.8">' +
+        weaknesses.map(s => '<li>' + s + '</li>').join('') +
+        '</ul>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 
 // ===== Rolling 1-year window (BKK) =====
