@@ -791,11 +791,21 @@ function renderBranchInline() {
       const quotaBadge = belowQuota
         ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#991B1B;font-weight:700">⚠ ยอดขายขาด</span><span style="color:#7F1D1D;font-weight:800">' + fmt0(shortfall) + '/' + fmt0(kpiTarget) + '</span></div>'
         : '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#166534;font-weight:700">✅ ถึง KPI ฿' + fmt0(kpiTarget) + '</span><span style="color:#14532D;font-weight:800">เดือนนี้ ฿' + fmt0(mtdPTMem) + '</span></div>';
-      const todayBadge = todayTotal > 0
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#3730A3;font-weight:700">📌 ' + dateLabel + 'บันทึกแล้ว</span><span style="color:#1E1B4B;font-weight:800">฿' + fmt0(todayTotal) + '</span></div>'
-        : '';
-      const trainBadge = isPT && todayTrain > 0
-        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 9px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;font-size:11px;margin:0 0 6px"><span style="color:#92400E;font-weight:700">🏋 จำนวนเทรน' + dateLabel + '</span><span style="color:#78350F;font-weight:800">' + fmtInt(todayTrain) + ' ครั้ง</span></div>'
+      const hasDateData = todayTotal > 0 || todayTrain > 0;
+      const showDateCard = !isToday || hasDateData;
+      const dateCard = showDateCard
+        ? '<div style="background:#EEF2FF;border:1px solid #C7D2FE;border-radius:8px;padding:8px 10px;margin:0 0 6px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:800;color:#3730A3;margin-bottom:6px">' +
+              '<span>📌 ยอดของ' + dateLabel + '</span>' +
+              '<span style="color:#1E1B4B">฿' + fmt0(todayTotal) + (hasDateData ? '' : ' · ยังไม่บันทึก') + '</span>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(' + (isPT ? '4' : '3') + ',1fr);gap:5px;font-size:10px">' +
+              '<div style="text-align:center;background:#fff;padding:5px 3px;border-radius:6px;border:1px solid #FECACA"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;color:#1F2937;font-size:11px">฿' + fmt0(todayPT) + '</div></div>' +
+              '<div style="text-align:center;background:#fff;padding:5px 3px;border-radius:6px;border:1px solid #E5E7EB"><div style="color:#1F1F1F;font-weight:700">🎫 MEM</div><div style="font-weight:800;color:#1F2937;font-size:11px">฿' + fmt0(todayMEM) + '</div></div>' +
+              '<div style="text-align:center;background:#fff;padding:5px 3px;border-radius:6px;border:1px solid #FED7AA"><div style="color:#D97706;font-weight:700">📋 PLAN</div><div style="font-weight:800;color:#1F2937;font-size:11px">฿' + fmt0(todayPLAN) + '</div></div>' +
+              (isPT ? '<div style="text-align:center;background:#fff;padding:5px 3px;border-radius:6px;border:1px solid #FCD34D"><div style="color:#92400E;font-weight:700">🏋 เทรน</div><div style="font-weight:800;color:#1F2937;font-size:11px">' + fmtInt(todayTrain) + '</div></div>' : '') +
+            '</div>' +
+          '</div>'
         : '';
       const canEdit = canEditBranch(br.id);
       const teamCtl = canEdit
@@ -818,14 +828,14 @@ function renderBranchInline() {
         : '';
       const salesForm = canEdit
         ? '<div class="inline-sales-form" data-bid="' + br.id + '" data-eid="' + e.id + '" data-ispt="' + (isPT ? '1' : '0') + '">' +
-            quotaBadge + todayBadge + trainBadge +
+            quotaBadge + dateCard +
             '<div class="inline-input-row"><span class="inline-label pt">💪 PT</span><input type="number" class="inline-pt" placeholder="0.00" min="0" step="0.01"></div>' +
             '<div class="inline-input-row"><span class="inline-label member">🎫 MEM</span><input type="number" class="inline-member" placeholder="0.00" min="0" step="0.01"></div>' +
             '<div class="inline-input-row"><span class="inline-label plan">📋 PLAN</span><input type="number" class="inline-plan" placeholder="0.00" min="0" step="0.01"></div>' +
             trainInputRow +
             '<button type="button" class="emp-card-btn inline-save-btn">💾 เพิ่มยอดขาย</button>' +
           '</div>'
-        : (quotaBadge + todayBadge + trainBadge);
+        : (quotaBadge + dateCard);
       return '<div class="emp-card" style="' + cardStyle + '">' +
         editBtns +
         '<div class="emp-card-header">' + avatarHTML(e) +
