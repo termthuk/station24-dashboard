@@ -3145,9 +3145,10 @@ function renderYearTrainView() {
 }
 
 // ===== Employee analysis view (per-person, split by Sale / Trainer) =====
-let eaMonth = todayBKK().slice(0, 7); // YYYY-MM
+let eaMonth = todayBKK().slice(0, 7);     // YYYY-MM (TO month, latest in range)
+let eaMonthFrom = todayBKK().slice(0, 7); // YYYY-MM (FROM month, earliest in range)
 let eaRole = 'sale';
-let eaSelectedIds = new Set();
+let eaSelectedIds = new Set();            // composite keys: "YYYY-MM|empId"
 let eaSelectionKey = '';
 let eaShowDeep = true;
 
@@ -3169,55 +3170,22 @@ function renderEmpAnalysisView() {
   const today = todayBKK();
   const todayMonth = today.slice(0, 7);
   if (eaMonth > todayMonth) eaMonth = todayMonth;
+  if (!eaMonthFrom || eaMonthFrom > eaMonth) eaMonthFrom = eaMonth;
   const isTrainer = eaRole === 'trainer';
   const branchesView = filteredBranches();
 
-  const monthStart = eaMonth + '-01';
-  const lastDay = new Date(parseInt(eaMonth.slice(0, 4), 10), parseInt(eaMonth.slice(5, 7), 10), 0).getDate();
-  const monthEnd = eaMonth + '-' + String(lastDay).padStart(2, '0');
-  const isCurrentMonth = eaMonth === todayMonth;
-  const effectiveEnd = isCurrentMonth ? today : monthEnd;
-  const r = { from: monthStart, to: effectiveEnd };
-  const daysInRange = isCurrentMonth ? parseInt(today.slice(8, 10), 10) : lastDay;
-  const cappedDays = Math.min(daysInRange, 30);
-  const SALE_KPI_RANGE = DAILY_QUOTA * cappedDays;
-  const trainerMonthly = Math.round(TRAIN_KPI / 12);
-  const TRAINER_KPI_RANGE = isCurrentMonth ? Math.max(1, Math.round(trainerMonthly * cappedDays / 30)) : trainerMonthly;
-
-  // Pull only employees who actually have data in the selected month
-  const all = branchesView.flatMap(br =>
-    br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
-      .map(e => ({ emp: e, branch: br, totals: empTotalsInRange(br.id, e.id, r) }))
-      .filter(x => {
-        const t = x.totals;
-        return t.days > 0 || t.train > 0 || (t.pt + t.member + t.plan) > 0;
-      })
-  );
-  // Total roster size (for context — how many were excluded because no data)
-  const rosterCount = branchesView.reduce((s, br) =>
-    s + br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position)).length, 0);
-  const noDataCount = rosterCount - all.length;
-
-  const analysis = all.map(x => {
-    const t = x.totals;
-    const primary = isTrainer ? t.train : (t.pt + t.member);
-    const kpi = isTrainer ? TRAINER_KPI_RANGE : SALE_KPI_RANGE;
-    const achievement = kpi > 0 ? Math.round(primary * 100 / kpi) : 0;
-    return { ...x, primary, kpi, achievement };
-  }).sort((a, b) => b.achievement - a.achievement);
-
-  const totalCount = analysis.length;
-  const passedCount = analysis.filter(x => x.achievement >= 100).length;
-  const passRate = totalCount ? Math.round(passedCount * 100 / totalCount) : 0;
-  const sumPrimary = analysis.reduce((s, x) => s + x.primary, 0);
-  const avgPrimary = totalCount ? Math.round(sumPrimary / totalCount) : 0;
-
-  const rangeLabel = thaiMonthLabel(eaMonth) + (isCurrentMonth ? ' · ถึงวันที่ ' + parseInt(today.slice(8,10), 10) : '') + ' (' + daysInRange + ' วัน)';
+  // Build month list (cap at 24 months for safety)
+  const months = [];
+  let _m = eaMonthFrom;
+  while (_m <= eaMonth && months.length < 24) { months.push(_m); _m = shiftMonth(_m, 1); }
+  if (!months.length) months.push(eaMonth);
+  const isSingleMonth = months.length === 1;
 
   const accent = (a) => a >= 100 ? '#16A34A' : a >= 80 ? '#D97706' : a >= 50 ? '#DC2626' : '#7F1D1D';
   const badge = (a) => a >= 100 ? '✅ ผ่าน KPI' : a >= 80 ? '⚠ ใกล้ผ่าน' : a >= 50 ? '⚠ ต่ำกว่า KPI' : '🚨 ต่ำกว่ามาก';
 
-  const saleDiag = (t, ach) => {
+  // Diagnosis helpers (parameterized by daysInRange)
+  const saleDiag = (t, ach, daysInRange) => {
     const issues = [], strengths = [];
     if (ach >= 100) strengths.push('ผ่าน KPI ' + ach + '%');
     if (t.days >= daysInRange * 0.7) strengths.push('ลงข้อมูลสม่ำเสมอ');
@@ -3235,7 +3203,7 @@ function renderEmpAnalysisView() {
     else strengths.push('มีขาย Plan SETUP');
     return { issues, strengths };
   };
-  const saleSug = (t, ach) => {
+  const saleSug = (t, ach, daysInRange) => {
     const s = [];
     if (ach < 100) s.push('🎯 ตั้งเป้ารายวัน ฿' + fmt0(DAILY_QUOTA) + ' · โทร follow-up ลูกค้าเก่า');
     if (t.days < daysInRange * 0.5) s.push('📝 ลงข้อมูลให้ครบทุกวันก่อนปิดร้าน');
@@ -3246,7 +3214,7 @@ function renderEmpAnalysisView() {
     if (!s.length) s.push('🎉 รักษาฟอร์มไว้ + ช่วย coach เพื่อนทีม');
     return s;
   };
-  const trainerDiag = (t, ach) => {
+  const trainerDiag = (t, ach, daysInRange) => {
     const issues = [], strengths = [];
     if (ach >= 100) strengths.push('ผ่าน KPI ' + ach + '%');
     if (t.days >= daysInRange * 0.5) strengths.push('เทรนสม่ำเสมอ ' + t.days + ' วัน');
@@ -3261,7 +3229,7 @@ function renderEmpAnalysisView() {
     else strengths.push('มียอดขาย PT ฿' + fmt0(t.pt));
     return { issues, strengths };
   };
-  const trainerSug = (t, ach) => {
+  const trainerSug = (t, ach, daysInRange) => {
     const s = [];
     if (ach < 100) s.push('🎯 mini-KPI ' + Math.ceil(TRAIN_KPI / 52) + ' ครั้ง/สัปดาห์');
     if (t.days < daysInRange * 0.3) s.push('📝 ลงข้อมูลเทรนทุกครั้งหลังจบ session');
@@ -3270,122 +3238,243 @@ function renderEmpAnalysisView() {
     if (!s.length) s.push('🎉 ผลงานดี · ทำ Buddy coach เพื่อน trainer');
     return s;
   };
-  // ===== Deep analysis: causes / fixes / weaknesses =====
-  const deepAnalyzeOne = (x, sortedAll) => {
+
+  // Deep analysis (parameterized by month context `ma`)
+  const deepAnalyzeOne = (x, ma) => {
     const t = x.totals;
+    const sortedAll = ma.analysis;
     const rank = sortedAll.findIndex(a => a.emp.id === x.emp.id) + 1;
     const total = sortedAll.length;
-    const isTopThird = total > 0 && rank <= Math.ceil(total / 3);
     const isBottomThird = total > 0 && rank > Math.floor(total * 2 / 3);
-    const causes = [];
-    const fixes = [];
-    const weaknesses = [];
-    // Find best/worst day in the month
+    const causes = [], fixes = [], weaknesses = [];
     const ds = (DAILY[x.branch.id] && DAILY[x.branch.id][x.emp.id]) || {};
     let bestDay = null, bestVal = 0, recordedDays = [];
     for (const d in ds) {
-      if (d < (eaMonth + '-01') || d > (eaMonth + '-31')) continue;
+      if (d < ma.monthStart || d > ma.monthEnd) continue;
       const e = ds[d] || {};
       const v = isTrainer ? (+e.train || 0) : ((+e.pt || 0) + (+e.member || 0));
       if (v > 0) recordedDays.push(d);
       if (v > bestVal) { bestVal = v; bestDay = d; }
     }
-    const noRecordDays = daysInRange - recordedDays.length;
-
+    const noRecordDays = ma.daysInRange - recordedDays.length;
     if (isTrainer) {
-      // ---- Causes ----
-      const monthKpi = TRAINER_KPI_RANGE;
+      const monthKpi = ma.TRAINER_KPI_RANGE;
       const gap = monthKpi - t.train;
-      if (t.train === 0) {
-        causes.push('🚨 ไม่มีบันทึกเทรนในเดือน ' + thaiMonthLabel(eaMonth) + ' เลย — อาจลาออก ลืมลงข้อมูล หรือไม่มีลูกค้าเข้าเทรน');
-      } else if (gap > 0) {
-        causes.push('📉 ยังขาดอีก <strong>' + gap + ' ครั้ง</strong> เพื่อถึง KPI ' + monthKpi + ' ครั้ง/เดือน (ทำได้ ' + t.train + ')');
-      }
+      if (t.train === 0) causes.push('🚨 ไม่มีบันทึกเทรนในเดือน ' + thaiMonthLabel(ma.ym) + ' เลย — อาจลาออก ลืมลงข้อมูล หรือไม่มีลูกค้าเข้าเทรน');
+      else if (gap > 0) causes.push('📉 ยังขาดอีก <strong>' + gap + ' ครั้ง</strong> เพื่อถึง KPI ' + monthKpi + ' ครั้ง/เดือน (ทำได้ ' + t.train + ')');
       if (t.days > 0) {
         const perDay = t.train / t.days;
         if (perDay < 2 && t.train > 0) causes.push('⏰ เฉลี่ย <strong>' + perDay.toFixed(1) + ' ครั้ง/วันเทรน</strong> น้อยกว่า 2 — มี downtime ระหว่าง session');
       }
-      if (noRecordDays > daysInRange * 0.5 && daysInRange > 7) causes.push('📅 มี <strong>' + noRecordDays + ' วัน</strong> ที่ไม่ได้เทรน (จาก ' + daysInRange + ' วัน) — โอกาสหายมาก');
+      if (noRecordDays > ma.daysInRange * 0.5 && ma.daysInRange > 7) causes.push('📅 มี <strong>' + noRecordDays + ' วัน</strong> ที่ไม่ได้เทรน (จาก ' + ma.daysInRange + ' วัน) — โอกาสหายมาก');
       if (t.pt === 0) causes.push('💸 ไม่มียอดขาย PT package — พลาด commission เสริม');
       else if (t.train > 0) {
         const valPerSes = t.pt / t.train;
         if (valPerSes < 200) causes.push('💰 PT sales เฉลี่ย <strong>฿' + fmt0(valPerSes) + '/session</strong> ต่ำ — ขายแบบรายครั้ง ไม่ได้ขาย long-package');
       }
       if (isBottomThird && total >= 3) causes.push('📊 อยู่อันดับ <strong>' + rank + '/' + total + '</strong> ในกลุ่มเทรนเนอร์ (กลุ่มล่าง)');
-      // ---- Fixes ----
       if (gap > 0 && t.train > 0) {
-        const remainingDays = isCurrentMonth ? Math.max(1, lastDay - parseInt(today.slice(8,10), 10)) : 0;
+        const remainingDays = ma.isCurrentMonth ? Math.max(1, ma.lastDay - parseInt(today.slice(8,10), 10)) : 0;
         if (remainingDays > 0) fixes.push('🎯 ที่เหลือ ' + remainingDays + ' วันในเดือน · ต้องเทรน <strong>' + Math.ceil(gap/remainingDays) + ' ครั้ง/วัน</strong> เพื่อชน KPI');
         else fixes.push('🎯 mini-KPI สัปดาห์หน้า: ' + Math.ceil(monthKpi/4) + ' ครั้ง');
       }
-      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลังให้ครบทุก session — ใช้ปุ่ม 📅 วันที่ลงยอด ในหน้าสาขา');
+      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลังให้ครบทุก session');
       if (t.train > 0 && (t.train / Math.max(t.days, 1)) < 3) fixes.push('📞 follow-up no-show ภายใน 24 ชม · จัดตาราง back-to-back ลด gap');
-      if (t.pt === 0) fixes.push('💪 Cross-sell PT package: เริ่มจากลูกค้าประจำที่เทรนสม่ำเสมอ + เสนอ 10/20/30 sessions');
-      if (isBottomThird) fixes.push('🤝 ขอ Buddy coach จากเทรนเนอร์ Top 3 (เรียนรู้ retention/sales technique)');
-      // ---- Weaknesses ----
-      if (t.pt === 0) weaknesses.push('PT package skill: ขาย 0 บาทตลอดเดือน — ต้องอบรมการ upsell');
-      if (t.train > 0 && t.days < daysInRange * 0.3) weaknesses.push('การกระจาย session: เทรนกระจุกเฉพาะบางวัน — ลูกค้าที่ต้องการคิวอื่นอาจหลุดมือ');
-      if (noRecordDays > daysInRange * 0.5) weaknesses.push('Engagement: ' + Math.round(noRecordDays * 100 / daysInRange) + '% ของเดือนไม่มี session — ต้องสร้าง pipeline');
-      if (bestVal > 0 && t.days > 0 && bestVal > (t.train / t.days) * 3) weaknesses.push('Consistency: วันดีสุด ' + bestVal + ' ครั้ง · เฉลี่ย ' + (t.train/t.days).toFixed(1) + ' ครั้ง — variance สูง');
+      if (t.pt === 0) fixes.push('💪 Cross-sell PT package: เริ่มจากลูกค้าประจำที่เทรนสม่ำเสมอ');
+      if (isBottomThird) fixes.push('🤝 ขอ Buddy coach จากเทรนเนอร์ Top 3');
+      if (t.pt === 0) weaknesses.push('PT package skill: ขาย 0 บาทตลอดเดือน');
+      if (t.train > 0 && t.days < ma.daysInRange * 0.3) weaknesses.push('การกระจาย session: เทรนกระจุกเฉพาะบางวัน');
+      if (noRecordDays > ma.daysInRange * 0.5) weaknesses.push('Engagement: ' + Math.round(noRecordDays * 100 / ma.daysInRange) + '% ของเดือนไม่มี session');
+      if (bestVal > 0 && t.days > 0 && bestVal > (t.train / t.days) * 3) weaknesses.push('Consistency: variance สูง · วันดีสุด ' + bestVal + ' ครั้ง vs เฉลี่ย ' + (t.train/t.days).toFixed(1));
     } else {
-      // ---- Sale ----
-      const monthKpi = SALE_KPI_RANGE;
+      const monthKpi = ma.SALE_KPI_RANGE;
       const ptmem = t.pt + t.member;
       const gap = monthKpi - ptmem;
-      if (ptmem === 0) {
-        causes.push('🚨 ไม่มียอด PT/MEMBER ในเดือน ' + thaiMonthLabel(eaMonth) + ' — ปิด deal ไม่ได้ หรือไม่ได้ลงข้อมูล');
-      } else if (gap > 0) {
-        causes.push('📉 ขาดอีก <strong>฿' + fmt0(gap) + '</strong> เพื่อถึง KPI ฿' + fmt0(monthKpi) + ' (ทำได้ ฿' + fmt0(ptmem) + ')');
-      }
-      if (noRecordDays > daysInRange * 0.5 && daysInRange > 7) causes.push('📅 ลงข้อมูลเพียง ' + recordedDays.length + '/' + daysInRange + ' วัน — มี ' + noRecordDays + ' วันที่ไม่ลง (ลืม หรือ 0 ยอด?)');
+      if (ptmem === 0) causes.push('🚨 ไม่มียอด PT/MEMBER ในเดือน ' + thaiMonthLabel(ma.ym) + ' — ปิด deal ไม่ได้ หรือไม่ได้ลงข้อมูล');
+      else if (gap > 0) causes.push('📉 ขาดอีก <strong>฿' + fmt0(gap) + '</strong> เพื่อถึง KPI ฿' + fmt0(monthKpi) + ' (ทำได้ ฿' + fmt0(ptmem) + ')');
+      if (noRecordDays > ma.daysInRange * 0.5 && ma.daysInRange > 7) causes.push('📅 ลงข้อมูลเพียง ' + recordedDays.length + '/' + ma.daysInRange + ' วัน — มี ' + noRecordDays + ' วันที่ไม่ลง');
       const ratio = ptmem > 0 ? t.pt / ptmem : 0;
       if (ptmem > 0) {
         if (t.member === 0) causes.push('🎫 MEMBER = 0 ทั้งเดือน — ขาดทักษะขาย package พื้นฐาน');
         else if (t.pt === 0) causes.push('💪 PT = 0 ทั้งเดือน — ไม่ได้ upsell หลังขาย MEMBER');
-        else if (ratio > 0.85) causes.push('⚖ PT ' + Math.round(ratio*100) + '% : MEMBER ' + Math.round((1-ratio)*100) + '% — ไม่สมดุล (เน้น PT มากเกิน)');
-        else if (ratio < 0.15) causes.push('⚖ MEMBER ' + Math.round((1-ratio)*100) + '% : PT ' + Math.round(ratio*100) + '% — ไม่สมดุล (เน้น MEMBER มากเกิน)');
+        else if (ratio > 0.85) causes.push('⚖ PT ' + Math.round(ratio*100) + '% : MEMBER ' + Math.round((1-ratio)*100) + '% — ไม่สมดุล');
+        else if (ratio < 0.15) causes.push('⚖ MEMBER ' + Math.round((1-ratio)*100) + '% : PT ' + Math.round(ratio*100) + '% — ไม่สมดุล');
       }
-      if (t.plan === 0 && ptmem > 0) causes.push('📋 ไม่มียอด Plan SETUP — พลาด add-on revenue ทุกสัญญา');
+      if (t.plan === 0 && ptmem > 0) causes.push('📋 ไม่มียอด Plan SETUP — พลาด add-on');
       if (isBottomThird && total >= 3) causes.push('📊 อยู่อันดับ <strong>' + rank + '/' + total + '</strong> ในกลุ่ม Sale (กลุ่มล่าง)');
-      // ---- Fixes ----
       if (gap > 0 && ptmem > 0) {
-        const remainingDays = isCurrentMonth ? Math.max(1, lastDay - parseInt(today.slice(8,10), 10)) : 0;
+        const remainingDays = ma.isCurrentMonth ? Math.max(1, ma.lastDay - parseInt(today.slice(8,10), 10)) : 0;
         if (remainingDays > 0) fixes.push('🎯 ที่เหลือ ' + remainingDays + ' วัน · ต้องปิดยอด <strong>฿' + fmt0(Math.ceil(gap/remainingDays)) + '/วัน</strong>');
         else fixes.push('🎯 เดือนถัดไปตั้งเป้ารายวัน ฿' + fmt0(DAILY_QUOTA));
       }
-      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลังด้วยปุ่ม 📅 วันที่ลงยอด · ลงทุกวันก่อนปิดร้าน');
-      if (t.member === 0) fixes.push('🎫 อบรม script ขาย MEMBER · เน้น value แบบรายเดือน + flexibility');
-      if (t.pt === 0 && t.member > 0) fixes.push('💪 ฝึก script upsell PT ทันทีหลัง MEMBER ปิด · ใช้ trial session 1 ครั้ง');
-      if (t.plan === 0) fixes.push('📋 รวม Plan SETUP เข้าใน package ทุกครั้งโดยไม่ต้องถาม');
-      if (isBottomThird) fixes.push('🤝 ขอ shadow Top performer 1 สัปดาห์ · ดูเทคนิคปิด deal');
-      // ---- Weaknesses ----
-      if (t.member === 0) weaknesses.push('Membership selling skill: 0 บาท ทั้งเดือน — ขาดทักษะ ฟังดู bottleneck สำคัญ');
-      if (t.pt === 0 && t.member > 0) weaknesses.push('Upsell skill: ขาย MEMBER ได้แต่ไม่ได้ต่อ PT — พลาด commission');
-      if (noRecordDays > daysInRange * 0.5) weaknesses.push('Discipline: ลงข้อมูล ' + Math.round(recordedDays.length * 100 / daysInRange) + '% ของเดือน — ติดตามผลยาก');
-      if (t.plan === 0) weaknesses.push('Add-on selling: Plan SETUP = 0 — เสียโอกาสรายได้เสริมที่ง่ายที่สุด');
+      if (noRecordDays > 5) fixes.push('📝 ลงข้อมูลย้อนหลัง · ลงทุกวันก่อนปิดร้าน');
+      if (t.member === 0) fixes.push('🎫 อบรม script ขาย MEMBER · เน้น value แบบรายเดือน');
+      if (t.pt === 0 && t.member > 0) fixes.push('💪 ฝึก script upsell PT ทันทีหลัง MEMBER ปิด');
+      if (t.plan === 0) fixes.push('📋 รวม Plan SETUP เข้าใน package ทุกครั้ง');
+      if (isBottomThird) fixes.push('🤝 ขอ shadow Top performer 1 สัปดาห์');
+      if (t.member === 0) weaknesses.push('Membership selling skill: 0 บาท ทั้งเดือน');
+      if (t.pt === 0 && t.member > 0) weaknesses.push('Upsell skill: ขาย MEMBER ได้แต่ไม่ได้ต่อ PT');
+      if (noRecordDays > ma.daysInRange * 0.5) weaknesses.push('Discipline: ลงข้อมูล ' + Math.round(recordedDays.length * 100 / ma.daysInRange) + '% ของเดือน');
+      if (t.plan === 0) weaknesses.push('Add-on selling: Plan SETUP = 0');
       if (bestVal > 0 && recordedDays.length > 0) {
         const avgPerDay = ptmem / recordedDays.length;
-        if (bestVal > avgPerDay * 4) weaknesses.push('Consistency: วันดีสุด ฿' + fmt0(bestVal) + ' · เฉลี่ย ฿' + fmt0(avgPerDay) + '/วัน — variance สูง ขาย "ฟลุ๊ก" หรือ?');
+        if (bestVal > avgPerDay * 4) weaknesses.push('Consistency: วันดีสุด ฿' + fmt0(bestVal) + ' · เฉลี่ย ฿' + fmt0(avgPerDay) + '/วัน');
       }
     }
     if (!causes.length) causes.push('🎉 ผลงานดีเยี่ยม · ไม่มีจุดอ่อนชัดเจน');
-    if (!fixes.length) fixes.push('🎉 รักษาฟอร์มไว้ · ช่วย coach เพื่อนทีมที่ยังไม่ถึง KPI');
+    if (!fixes.length) fixes.push('🎉 รักษาฟอร์มไว้ · ช่วย coach เพื่อนทีม');
     if (!weaknesses.length) weaknesses.push('— ไม่พบจุดอ่อนเชิงระบบ —');
     return { causes, fixes, weaknesses, rank, total, bestDay, bestVal, recordedDays: recordedDays.length, noRecordDays };
   };
 
+  // ===== Compute analysis for one month =====
+  const analyzeMonth = (ym) => {
+    const monthStart = ym + '-01';
+    const lastDay = new Date(parseInt(ym.slice(0, 4), 10), parseInt(ym.slice(5, 7), 10), 0).getDate();
+    const monthEnd = ym + '-' + String(lastDay).padStart(2, '0');
+    const isCurrentMonth = ym === todayMonth;
+    const effectiveEnd = isCurrentMonth ? today : monthEnd;
+    const r = { from: monthStart, to: effectiveEnd };
+    const daysInRange = isCurrentMonth ? parseInt(today.slice(8, 10), 10) : lastDay;
+    const cappedDays = Math.min(daysInRange, 30);
+    const SALE_KPI_RANGE = DAILY_QUOTA * cappedDays;
+    const trainerMonthly = Math.round(TRAIN_KPI / 12);
+    const TRAINER_KPI_RANGE = isCurrentMonth ? Math.max(1, Math.round(trainerMonthly * cappedDays / 30)) : trainerMonthly;
+    // Pull ALL employees (no filter — show everyone)
+    const all = branchesView.flatMap(br =>
+      br.employees.filter(e => isTrainer ? isPosPT(e.position) : !isPosPT(e.position))
+        .map(e => ({ emp: e, branch: br, totals: empTotalsInRange(br.id, e.id, r) }))
+    );
+    const analysis = all.map(x => {
+      const t = x.totals;
+      const primary = isTrainer ? t.train : (t.pt + t.member);
+      const kpi = isTrainer ? TRAINER_KPI_RANGE : SALE_KPI_RANGE;
+      const achievement = kpi > 0 ? Math.round(primary * 100 / kpi) : 0;
+      return Object.assign({}, x, { primary: primary, kpi: kpi, achievement: achievement });
+    }).sort((a, b) => b.achievement - a.achievement);
+    const totalCount = analysis.length;
+    const passedCount = analysis.filter(x => x.achievement >= 100).length;
+    const passRate = totalCount ? Math.round(passedCount * 100 / totalCount) : 0;
+    const sumPrimary = analysis.reduce((s, x) => s + x.primary, 0);
+    const avgPrimary = totalCount ? Math.round(sumPrimary / totalCount) : 0;
+    const monthLabel = thaiMonthLabel(ym) + (isCurrentMonth ? ' · ถึงวันที่ ' + parseInt(today.slice(8,10), 10) : '') + ' (' + daysInRange + ' วัน)';
+    return {
+      ym: ym, monthLabel: monthLabel, monthStart: monthStart, monthEnd: monthEnd,
+      lastDay: lastDay, isCurrentMonth: isCurrentMonth, daysInRange: daysInRange,
+      SALE_KPI_RANGE: SALE_KPI_RANGE, TRAINER_KPI_RANGE: TRAINER_KPI_RANGE,
+      analysis: analysis, totalCount: totalCount, passedCount: passedCount,
+      passRate: passRate, avgPrimary: avgPrimary
+    };
+  };
+  const monthAnalyses = months.map(analyzeMonth);
+
   const exportName = isTrainer ? 'Station24_วิเคราะห์เทรนเนอร์' : 'Station24_วิเคราะห์เซลล์';
-  // Sync selection across role/month changes
-  const selKey = eaRole + '|' + eaMonth;
-  const visibleIds = analysis.map(x => x.emp.id);
+  // Sync selection: composite keys "ym|empId"
+  const allSelKeys = [];
+  monthAnalyses.forEach(ma => ma.analysis.forEach(x => allSelKeys.push(ma.ym + '|' + x.emp.id)));
+  const selKey = eaRole + '|' + eaMonthFrom + '|' + eaMonth;
   if (eaSelectionKey !== selKey) {
     eaSelectionKey = selKey;
-    eaSelectedIds = new Set(visibleIds);
+    eaSelectedIds = new Set(allSelKeys);
   } else {
-    eaSelectedIds = new Set([...eaSelectedIds].filter(id => visibleIds.includes(id)));
+    eaSelectedIds = new Set([...eaSelectedIds].filter(k => allSelKeys.indexOf(k) >= 0));
   }
   const selectedCount = eaSelectedIds.size;
 
+  // ===== Render single card for an employee in a specific month =====
+  const renderCard = (x, ma) => {
+    const t = x.totals;
+    const ac = accent(x.achievement);
+    const bg = x.achievement >= 100 ? '#F0FDF4' : x.achievement >= 50 ? '#FFFBEB' : '#FEF2F2';
+    const av = x.emp.photo
+      ? '<img src="' + x.emp.photo + '" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + ac + '">'
+      : '<div style="width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(x.emp.id) + ';flex-shrink:0;border:2px solid ' + ac + '">' + avatarInitials(x.emp.name) + '</div>';
+    const diag = isTrainer ? trainerDiag(t, x.achievement, ma.daysInRange) : saleDiag(t, x.achievement, ma.daysInRange);
+    const sug = isTrainer ? trainerSug(t, x.achievement, ma.daysInRange) : saleSug(t, x.achievement, ma.daysInRange);
+    const barPct = Math.min(x.achievement, 100);
+    const cardKey = ma.ym + '|' + x.emp.id;
+    const isSelected = eaSelectedIds.has(cardKey);
+    const cardId = 'ea-card-' + ma.ym + '-' + x.emp.id;
+    const deep = deepAnalyzeOne(x, ma);
+    return '<div class="ea-card-wrap" style="position:relative">' +
+      '<label class="no-capture" title="เลือกเพื่อ Export PDF" style="position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;padding:5px 10px;background:#fff;border:2px solid ' + ac + ';border-radius:999px;cursor:pointer;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.06)">' +
+        '<input type="checkbox" class="ea-select-cb" data-key="' + cardKey + '"' + (isSelected ? ' checked' : '') + ' style="margin:0;cursor:pointer;width:16px;height:16px;accent-color:' + ac + '">' +
+        '<span style="font-size:11px;font-weight:700;color:' + ac + '">PDF</span>' +
+      '</label>' +
+      '<div id="' + cardId + '" class="card" style="background:' + bg + ';border:1px solid ' + ac + ';border-radius:12px;padding:14px 16px;padding-top:46px;margin-bottom:0">' +
+      '<div style="position:absolute;top:14px;right:16px;font-size:10px;color:var(--gray-text);font-weight:600;background:#fff;padding:3px 8px;border-radius:6px;border:1px solid var(--gray-line)">📅 ' + thaiMonthLabel(ma.ym) + '</div>' +
+      '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' + av +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:15px;font-weight:800;color:#0F0F0F">' + x.emp.name + '</div>' +
+          '<div style="font-size:11px;color:var(--gray-text);font-weight:600">' + x.branch.emoji + ' ' + x.branch.name + ' · ' + (x.emp.position || '—') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:11px;color:' + ac + ';font-weight:700">' + badge(x.achievement) + '</div>' +
+          '<div style="font-size:20px;font-weight:900;color:' + ac + '">' + x.achievement + '%</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#fff;border-radius:8px;height:10px;overflow:hidden;border:1px solid #E5E7EB;margin-bottom:10px">' +
+        '<div style="width:' + barPct + '%;height:100%;background:linear-gradient(90deg,' + ac + ',' + ac + 'cc)"></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;font-size:10px;margin-bottom:10px">' +
+        (isTrainer
+          ? '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#92400E;font-weight:700">🏋 เทรน</div><div style="font-weight:800;font-size:12px">' + fmtInt(t.train) + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📊 /วัน</div><div style="font-weight:800;font-size:12px">' + (t.days ? (t.train/t.days).toFixed(1) : '0') + '</div></div>'
+          : '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#1F1F1F;font-weight:700">🎫 MEM</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.member) + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#D97706;font-weight:700">📋 PLAN</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.plan) + '</div></div>' +
+            '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>'
+        ) +
+      '</div>' +
+      (diag.strengths.length
+        ? '<div style="background:#DCFCE7;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
+            '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:4px">💪 จุดแข็ง</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+            diag.strengths.map(s => '<span style="background:#fff;border:1px solid #86EFAC;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
+            '</div></div>'
+        : '') +
+      (diag.issues.length
+        ? '<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
+            '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:4px">⚠ จุดอ่อน / ที่ต้องปรับปรุง</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
+            diag.issues.map(s => '<span style="background:#fff;border:1px solid #FCA5A5;color:#991B1B;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
+            '</div></div>'
+        : '') +
+      '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 10px;margin-bottom:8px">' +
+        '<div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:4px">🛠 สรุปย่อ</div>' +
+        '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.6">' +
+        sug.map(s => '<li>' + s + '</li>').join('') +
+        '</ul></div>' +
+      '<details class="ea-deep no-capture-toggle"' + (eaShowDeep ? ' open' : '') + ' style="margin-top:8px;border:2px dashed ' + ac + ';border-radius:10px;padding:8px 12px;background:#fff">' +
+        '<summary style="cursor:pointer;font-size:12px;font-weight:800;color:' + ac + ';list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧠 วิเคราะห์ SKU เชิงลึก</span><span style="font-size:10px;color:var(--gray-text);font-weight:600">อันดับ ' + deep.rank + '/' + deep.total + ' · ลง ' + deep.recordedDays + '/' + ma.daysInRange + ' วัน</span></summary>' +
+        '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">' +
+          '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px">' +
+            '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:6px">🔍 1. สาเหตุของยอด' + (isTrainer ? 'เทรน' : 'ขาย') + 'ที่น้อย</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+            deep.causes.map(s => '<li>' + s + '</li>').join('') +
+            '</ul>' +
+          '</div>' +
+          '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px">' +
+            '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:6px">🛠 2. คำแนะนำและวิธีแก้ไข</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+            deep.fixes.map(s => '<li>' + s + '</li>').join('') +
+            '</ul>' +
+          '</div>' +
+          '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:8px 10px">' +
+            '<div style="font-size:11px;font-weight:800;color:#92400E;margin-bottom:6px">⚠ 3. จุดอ่อนที่พลาดและการปรับปรุง</div>' +
+            '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
+            deep.weaknesses.map(s => '<li>' + s + '</li>').join('') +
+            '</ul>' +
+          '</div>' +
+        '</div>' +
+      '</details>' +
+      '</div>' +
+      '</div>';
+  };
+
+  // ===== Toolbar =====
   let html = '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
     '<button type="button" id="eaToggleDeep" style="padding:7px 14px;border:1px solid #7C3AED;background:' + (eaShowDeep ? '#7C3AED' : '#fff') + ';color:' + (eaShowDeep ? '#fff' : '#7C3AED') + ';border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800">🧠 วิเคราะห์ SKU ' + (eaShowDeep ? '(ซ่อน)' : '(แสดง)') + '</button>' +
     '<button type="button" id="eaSelectAll" style="padding:7px 12px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">☑ เลือกทั้งหมด</button>' +
@@ -3393,161 +3482,109 @@ function renderEmpAnalysisView() {
     '<button type="button" id="eaBatchPdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">👤 บันทึก PDF รายคน (<span id="eaSelCount">' + selectedCount + '</span>)</button>' +
     '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 PNG (ทั้งหน้า)</button>' +
     '<button type="button" class="view-save-btn" data-tgt="empAnalysisContainer" data-name="' + exportName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 JPG (ทั้งหน้า)</button>' +
-    '</div>' +
-    '<div class="card no-capture" style="margin-bottom:14px;padding:14px 16px">' +
-      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center">' +
-        '<button type="button" id="eaPrevMonth" style="padding:9px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">◀ เดือนก่อนหน้า</button>' +
-        '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
-          '<input type="month" id="eaMonth" value="' + eaMonth + '" max="' + todayMonth + '" style="padding:9px 14px;border:1px solid var(--red);border-radius:8px;font-family:inherit;font-size:14px;font-weight:800;color:var(--red-dark);background:#FEF2F2;text-align:center">' +
-          '<div style="font-size:11px;color:var(--gray-text);font-weight:600">เลือกเดือนที่จะวิเคราะห์</div>' +
-        '</div>' +
-        '<button type="button" id="eaNextMonth" ' + (isCurrentMonth ? 'disabled' : '') + ' style="padding:9px 14px;border:1px solid var(--red);background:' + (isCurrentMonth ? '#F3F4F6' : '#fff') + ';color:' + (isCurrentMonth ? '#9CA3AF' : 'var(--red-dark)') + ';border-radius:8px;cursor:' + (isCurrentMonth ? 'not-allowed' : 'pointer') + ';font-family:inherit;font-size:13px;font-weight:800">เดือนถัดไป ▶</button>' +
-        '<button type="button" id="eaThisMonth" style="padding:9px 14px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">↺ เดือนปัจจุบัน</button>' +
-      '</div>' +
-    '</div>' +
-    '<div class="card no-capture" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px">' +
-      '<button type="button" id="eaTabSale" class="' + (!isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (!isTrainer?'#DC2626':'var(--gray-line)') + ';background:' + (!isTrainer?'#DC2626':'#fff') + ';color:' + (!isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🧑‍💼 Sale</button>' +
-      '<button type="button" id="eaTabTrainer" class="' + (isTrainer?'active':'') + '" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (isTrainer?'#16A34A':'var(--gray-line)') + ';background:' + (isTrainer?'#16A34A':'#fff') + ';color:' + (isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🏋 เทรนเนอร์</button>' +
-    '</div>' +
-    '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">' +
-      '<div style="background:linear-gradient(135deg,' + (isTrainer?'#16A34A,#15803D':'#DC2626,#991B1B') + ');color:#fff;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;opacity:0.9">' + (isTrainer?'🏋 เทรนเนอร์ที่มีข้อมูล':'🧑‍💼 Sale ที่มีข้อมูล') + '</div>' +
-        '<div style="font-size:24px;font-weight:900;margin-top:2px">' + totalCount + ' <span style="font-size:13px;font-weight:700;opacity:0.9">/ ' + rosterCount + ' คน</span></div>' +
-        '<div style="font-size:11px;opacity:0.85;margin-top:2px">' + branchesView.length + ' สาขา' + (noDataCount > 0 ? ' · ซ่อน ' + noDataCount + ' คนไม่มีข้อมูล' : '') + '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #16A34A;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;color:#166534">✅ ผ่าน KPI</div>' +
-        '<div style="font-size:24px;font-weight:900;color:#166534;margin-top:2px">' + passedCount + '/' + totalCount + ' <span style="font-size:13px;color:var(--gray-text)">(' + passRate + '%)</span></div>' +
-        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">เกณฑ์ ' + (isTrainer ? fmtInt(TRAINER_KPI_RANGE) + ' ครั้ง' : '฿' + fmt0(SALE_KPI_RANGE)) + '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #991B1B;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;color:#991B1B">📊 เฉลี่ย/คน</div>' +
-        '<div style="font-size:24px;font-weight:900;color:#991B1B;margin-top:2px">' + (isTrainer ? fmtInt(avgPrimary) + ' ครั้ง' : '฿' + fmt0(avgPrimary)) + '</div>' +
-        '<div style="font-size:11px;color:var(--gray-text);margin-top:2px">' + (isCurrentMonth ? 'เดือนนี้ถึงปัจจุบัน' : 'รวมทั้งเดือน') + '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border:1px solid var(--gray-line);border-left:5px solid #1F2937;border-radius:12px;padding:14px 16px">' +
-        '<div style="font-size:11px;font-weight:700;color:#1F2937">🗓 เดือนที่ดู</div>' +
-        '<div style="font-size:14px;font-weight:900;color:#1F2937;margin-top:4px;line-height:1.3">' + rangeLabel + '</div>' +
-      '</div>' +
     '</div>';
 
-  if (!analysis.length) {
-    html += '<div class="card"><div style="text-align:center;color:var(--gray-text);padding:40px">— ไม่มี' + (isTrainer?'เทรนเนอร์':'Sale') + 'ในเดือนนี้ —</div></div>';
-  } else {
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">' +
-      analysis.map(x => {
-        const t = x.totals;
-        const ac = accent(x.achievement);
-        const bg = x.achievement >= 100 ? '#F0FDF4' : x.achievement >= 50 ? '#FFFBEB' : '#FEF2F2';
-        const av = x.emp.photo
-          ? '<img src="' + x.emp.photo + '" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ' + ac + '">'
-          : '<div style="width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:' + avatarColor(x.emp.id) + ';flex-shrink:0;border:2px solid ' + ac + '">' + avatarInitials(x.emp.name) + '</div>';
-        const diag = isTrainer ? trainerDiag(t, x.achievement) : saleDiag(t, x.achievement);
-        const sug = isTrainer ? trainerSug(t, x.achievement) : saleSug(t, x.achievement);
-        const barPct = Math.min(x.achievement, 100);
-        const isSelected = eaSelectedIds.has(x.emp.id);
-        return '<div class="ea-card-wrap" style="position:relative">' +
-          '<label class="no-capture" title="เลือกเพื่อ Export PDF" style="position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;padding:5px 10px;background:#fff;border:2px solid ' + ac + ';border-radius:999px;cursor:pointer;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,0.06)">' +
-            '<input type="checkbox" class="ea-select-cb" data-eid="' + x.emp.id + '"' + (isSelected ? ' checked' : '') + ' style="margin:0;cursor:pointer;width:16px;height:16px;accent-color:' + ac + '">' +
-            '<span style="font-size:11px;font-weight:700;color:' + ac + '">PDF</span>' +
-          '</label>' +
-          '<div id="ea-card-' + x.emp.id + '" class="card" style="background:' + bg + ';border:1px solid ' + ac + ';border-radius:12px;padding:14px 16px;padding-top:46px;margin-bottom:0">' +
-          '<div style="position:absolute;top:14px;right:16px;font-size:10px;color:var(--gray-text);font-weight:600;background:#fff;padding:3px 8px;border-radius:6px;border:1px solid var(--gray-line)">📅 ' + thaiMonthLabel(eaMonth) + '</div>' +
-          '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' + av +
-            '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:15px;font-weight:800;color:#0F0F0F">' + x.emp.name + '</div>' +
-              '<div style="font-size:11px;color:var(--gray-text);font-weight:600">' + x.branch.emoji + ' ' + x.branch.name + ' · ' + (x.emp.position || '—') + '</div>' +
-            '</div>' +
-            '<div style="text-align:right">' +
-              '<div style="font-size:11px;color:' + ac + ';font-weight:700">' + badge(x.achievement) + '</div>' +
-              '<div style="font-size:20px;font-weight:900;color:' + ac + '">' + x.achievement + '%</div>' +
-            '</div>' +
-          '</div>' +
-          '<div style="background:#fff;border-radius:8px;height:10px;overflow:hidden;border:1px solid #E5E7EB;margin-bottom:10px">' +
-            '<div style="width:' + barPct + '%;height:100%;background:linear-gradient(90deg,' + ac + ',' + ac + 'cc)"></div>' +
-          '</div>' +
-          '<div style="display:grid;grid-template-columns:repeat(' + (isTrainer?'4':'4') + ',1fr);gap:5px;font-size:10px;margin-bottom:10px">' +
-            (isTrainer
-              ? '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#92400E;font-weight:700">🏋 เทรน</div><div style="font-weight:800;font-size:12px">' + fmtInt(t.train) + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📊 /วัน</div><div style="font-weight:800;font-size:12px">' + (t.days ? (t.train/t.days).toFixed(1) : '0') + '</div></div>'
-              : '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#DC2626;font-weight:700">💪 PT</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.pt) + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#1F1F1F;font-weight:700">🎫 MEM</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.member) + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#D97706;font-weight:700">📋 PLAN</div><div style="font-weight:800;font-size:12px">฿' + fmtShort(t.plan) + '</div></div>' +
-                '<div style="text-align:center;background:#fff;padding:6px 3px;border-radius:6px"><div style="color:#6B7280;font-weight:700">📅 วัน</div><div style="font-weight:800;font-size:12px">' + t.days + '</div></div>'
-            ) +
-          '</div>' +
-          (diag.strengths.length
-            ? '<div style="background:#DCFCE7;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
-                '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:4px">💪 จุดแข็ง</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
-                diag.strengths.map(s => '<span style="background:#fff;border:1px solid #86EFAC;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
-                '</div></div>'
-            : '') +
-          (diag.issues.length
-            ? '<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px;margin-bottom:6px">' +
-                '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:4px">⚠ จุดอ่อน / ที่ต้องปรับปรุง</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px">' +
-                diag.issues.map(s => '<span style="background:#fff;border:1px solid #FCA5A5;color:#991B1B;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600">' + s + '</span>').join('') +
-                '</div></div>'
-            : '') +
-          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:8px 10px;margin-bottom:8px">' +
-            '<div style="font-size:11px;font-weight:800;color:#1E3A8A;margin-bottom:4px">🛠 สรุปย่อ</div>' +
-            '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.6">' +
-            sug.map(s => '<li>' + s + '</li>').join('') +
-            '</ul></div>' +
-          (function(){
-            const deep = deepAnalyzeOne(x, analysis);
-            return '<details class="ea-deep no-capture-toggle"' + (eaShowDeep ? ' open' : '') + ' style="margin-top:8px;border:2px dashed ' + ac + ';border-radius:10px;padding:8px 12px;background:#fff">' +
-              '<summary style="cursor:pointer;font-size:12px;font-weight:800;color:' + ac + ';list-style:none;display:flex;justify-content:space-between;align-items:center"><span>🧠 วิเคราะห์ SKU เชิงลึก</span><span style="font-size:10px;color:var(--gray-text);font-weight:600">อันดับ ' + deep.rank + '/' + deep.total + ' · ลงข้อมูล ' + deep.recordedDays + '/' + daysInRange + ' วัน</span></summary>' +
-              '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">' +
-                '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:8px 10px">' +
-                  '<div style="font-size:11px;font-weight:800;color:#991B1B;margin-bottom:6px">🔍 1. สาเหตุของยอด' + (isTrainer ? 'เทรน' : 'ขาย') + 'ที่น้อย</div>' +
-                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
-                  deep.causes.map(s => '<li>' + s + '</li>').join('') +
-                  '</ul>' +
-                '</div>' +
-                '<div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:8px 10px">' +
-                  '<div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:6px">🛠 2. คำแนะนำและวิธีแก้ไข</div>' +
-                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
-                  deep.fixes.map(s => '<li>' + s + '</li>').join('') +
-                  '</ul>' +
-                '</div>' +
-                '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:8px 10px">' +
-                  '<div style="font-size:11px;font-weight:800;color:#92400E;margin-bottom:6px">⚠ 3. จุดอ่อนที่พลาดและการปรับปรุง</div>' +
-                  '<ul style="margin:0;padding-left:18px;font-size:11px;color:#1F2937;line-height:1.7">' +
-                  deep.weaknesses.map(s => '<li>' + s + '</li>').join('') +
-                  '</ul>' +
-                '</div>' +
-              '</div>' +
-            '</details>';
-          })() +
-          '</div>' +
+  // ===== Month range picker =====
+  html += '<div class="card no-capture" style="margin-bottom:14px;padding:14px 16px">' +
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center">' +
+      '<button type="button" id="eaPrevMonth" title="เลื่อนช่วงไป 1 เดือน" style="padding:9px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">◀</button>' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<span style="font-size:11px;font-weight:700;color:var(--gray-text)">จาก</span>' +
+          '<input type="month" id="eaMonthFrom" value="' + eaMonthFrom + '" max="' + todayMonth + '" style="padding:8px 12px;border:1px solid var(--red);border-radius:8px;font-family:inherit;font-size:13px;font-weight:800;color:var(--red-dark);background:#FEF2F2;text-align:center">' +
+          '<span style="font-size:11px;font-weight:700;color:var(--gray-text)">ถึง</span>' +
+          '<input type="month" id="eaMonth" value="' + eaMonth + '" max="' + todayMonth + '" style="padding:8px 12px;border:1px solid var(--red);border-radius:8px;font-family:inherit;font-size:13px;font-weight:800;color:var(--red-dark);background:#FEF2F2;text-align:center">' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--gray-text);font-weight:600">' + months.length + ' เดือน · วิเคราะห์เป็นเดือนต่อเดือน</div>' +
+      '</div>' +
+      '<button type="button" id="eaNextMonth" ' + (eaMonth === todayMonth ? 'disabled' : '') + ' style="padding:9px 14px;border:1px solid var(--red);background:' + (eaMonth === todayMonth ? '#F3F4F6' : '#fff') + ';color:' + (eaMonth === todayMonth ? '#9CA3AF' : 'var(--red-dark)') + ';border-radius:8px;cursor:' + (eaMonth === todayMonth ? 'not-allowed' : 'pointer') + ';font-family:inherit;font-size:13px;font-weight:800">▶</button>' +
+      '<button type="button" id="eaThisMonth" style="padding:9px 14px;border:1px solid var(--gray-line);background:#fff;color:var(--gray-text);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">↺ เดือนนี้</button>' +
+      '<button type="button" id="eaLast3" style="padding:9px 14px;border:1px solid #7C3AED;background:#fff;color:#7C3AED;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📅 3 เดือนล่าสุด</button>' +
+      '<button type="button" id="eaLast6" style="padding:9px 14px;border:1px solid #7C3AED;background:#fff;color:#7C3AED;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📅 6 เดือนล่าสุด</button>' +
+    '</div>' +
+  '</div>';
+
+  // ===== Role tabs =====
+  html += '<div class="card no-capture" style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;margin-bottom:14px">' +
+    '<button type="button" id="eaTabSale" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (!isTrainer?'#DC2626':'var(--gray-line)') + ';background:' + (!isTrainer?'#DC2626':'#fff') + ';color:' + (!isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🧑‍💼 Sale</button>' +
+    '<button type="button" id="eaTabTrainer" style="flex:1;min-width:140px;padding:10px 16px;border:2px solid ' + (isTrainer?'#16A34A':'var(--gray-line)') + ';background:' + (isTrainer?'#16A34A':'#fff') + ';color:' + (isTrainer?'#fff':'var(--gray-text)') + ';border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:800">🏋 เทรนเนอร์</button>' +
+  '</div>';
+
+  // ===== Per-month sections =====
+  for (const ma of monthAnalyses) {
+    // Month section header + KPI tiles
+    const headerColor = '#7C3AED';
+    html += '<div class="ea-month-section" style="margin-bottom:24px;padding-top:8px;border-top:' + (ma === monthAnalyses[0] ? 'none' : '4px dashed ' + headerColor) + '">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:linear-gradient(135deg,#7C3AED,#5B21B6);color:#fff;padding:14px 18px;border-radius:12px;margin-bottom:14px">' +
+      '<h3 style="margin:0;border:none;padding:0;font-size:16px;color:#fff">📅 ' + ma.monthLabel + '</h3>' +
+      '<div style="font-size:13px;font-weight:800;background:rgba(255,255,255,0.18);padding:6px 12px;border-radius:999px">ผ่าน KPI ' + ma.passedCount + '/' + ma.totalCount + ' (' + ma.passRate + '%) · เฉลี่ย ' + (isTrainer ? fmtInt(ma.avgPrimary) + ' ครั้ง' : '฿' + fmt0(ma.avgPrimary)) + '</div>' +
+    '</div>';
+
+    if (!ma.analysis.length) {
+      html += '<div class="card"><div style="text-align:center;color:var(--gray-text);padding:30px">— ไม่มี' + (isTrainer?'เทรนเนอร์':'Sale') + 'ในเดือนนี้ —</div></div>';
+    } else {
+      // Group by branch
+      branchesView.forEach(br => {
+        const inBranch = ma.analysis.filter(x => x.branch.id === br.id);
+        if (!inBranch.length) return;
+        const brTotal = inBranch.reduce((s, x) => s + x.primary, 0);
+        const brPassed = inBranch.filter(x => x.achievement >= 100).length;
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:14px 0 10px;padding:8px 14px;background:#FEF2F2;border-left:4px solid ' + (isTrainer ? '#16A34A' : '#DC2626') + ';border-radius:8px">' +
+          '<div style="font-size:14px;font-weight:800;color:#0F0F0F">' + br.emoji + ' สาขา' + br.name + ' <span style="font-size:11px;color:var(--gray-text);font-weight:600;margin-left:6px">(' + inBranch.length + ' คน · ผ่าน ' + brPassed + ')</span></div>' +
+          '<div style="font-size:12px;color:#7F1D1D;font-weight:700">รวม ' + (isTrainer ? fmtInt(brTotal) + ' ครั้ง' : '฿' + fmt0(brTotal)) + '</div>' +
+        '</div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">' +
+          inBranch.map(x => renderCard(x, ma)).join('') +
           '</div>';
-      }).join('') +
-      '</div>';
+      });
+    }
+    html += '</div>';
   }
 
   const container = document.getElementById('empAnalysisContainer');
   container.innerHTML = html;
   bindViewExportButtons(container);
 
+  // ===== Handlers =====
   document.getElementById('eaTabSale').onclick = () => { eaRole = 'sale'; renderEmpAnalysisView(); };
   document.getElementById('eaTabTrainer').onclick = () => { eaRole = 'trainer'; renderEmpAnalysisView(); };
-  const monthIn = document.getElementById('eaMonth');
+  const monthFromIn = document.getElementById('eaMonthFrom');
+  const monthToIn = document.getElementById('eaMonth');
   const prevBtn = document.getElementById('eaPrevMonth');
   const nextBtn = document.getElementById('eaNextMonth');
   const thisBtn = document.getElementById('eaThisMonth');
-  if (monthIn) monthIn.onchange = () => {
-    if (monthIn.value && monthIn.value <= todayMonth) { eaMonth = monthIn.value; renderEmpAnalysisView(); }
+  const last3Btn = document.getElementById('eaLast3');
+  const last6Btn = document.getElementById('eaLast6');
+  if (monthFromIn) monthFromIn.onchange = () => {
+    if (monthFromIn.value && monthFromIn.value <= todayMonth) {
+      eaMonthFrom = monthFromIn.value;
+      if (eaMonthFrom > eaMonth) eaMonth = eaMonthFrom;
+      renderEmpAnalysisView();
+    }
   };
-  if (prevBtn) prevBtn.onclick = () => { eaMonth = shiftMonth(eaMonth, -1); renderEmpAnalysisView(); };
+  if (monthToIn) monthToIn.onchange = () => {
+    if (monthToIn.value && monthToIn.value <= todayMonth) {
+      eaMonth = monthToIn.value;
+      if (eaMonthFrom > eaMonth) eaMonthFrom = eaMonth;
+      renderEmpAnalysisView();
+    }
+  };
+  if (prevBtn) prevBtn.onclick = () => {
+    eaMonthFrom = shiftMonth(eaMonthFrom, -1);
+    eaMonth = shiftMonth(eaMonth, -1);
+    renderEmpAnalysisView();
+  };
   if (nextBtn) nextBtn.onclick = () => {
-    const next = shiftMonth(eaMonth, 1);
-    if (next <= todayMonth) { eaMonth = next; renderEmpAnalysisView(); }
+    const nextTo = shiftMonth(eaMonth, 1);
+    if (nextTo <= todayMonth) {
+      eaMonth = nextTo;
+      eaMonthFrom = shiftMonth(eaMonthFrom, 1);
+      renderEmpAnalysisView();
+    }
   };
-  if (thisBtn) thisBtn.onclick = () => { eaMonth = todayMonth; renderEmpAnalysisView(); };
+  if (thisBtn) thisBtn.onclick = () => { eaMonthFrom = todayMonth; eaMonth = todayMonth; renderEmpAnalysisView(); };
+  if (last3Btn) last3Btn.onclick = () => { eaMonth = todayMonth; eaMonthFrom = shiftMonth(todayMonth, -2); renderEmpAnalysisView(); };
+  if (last6Btn) last6Btn.onclick = () => { eaMonth = todayMonth; eaMonthFrom = shiftMonth(todayMonth, -5); renderEmpAnalysisView(); };
 
   // Toggle all deep-analysis sections
   const toggleDeepBtn = document.getElementById('eaToggleDeep');
@@ -3560,18 +3597,17 @@ function renderEmpAnalysisView() {
       toggleDeepBtn.innerHTML = '🧠 วิเคราะห์ SKU ' + (eaShowDeep ? '(ซ่อน)' : '(แสดง)');
     };
   }
-  // Per-card checkbox
+  // Per-card checkbox (composite key)
   container.querySelectorAll('.ea-select-cb').forEach(cb => {
     cb.onchange = () => {
-      if (cb.checked) eaSelectedIds.add(cb.dataset.eid);
-      else eaSelectedIds.delete(cb.dataset.eid);
+      if (cb.checked) eaSelectedIds.add(cb.dataset.key);
+      else eaSelectedIds.delete(cb.dataset.key);
       const c = document.getElementById('eaSelCount');
       if (c) c.textContent = eaSelectedIds.size;
     };
   });
-  // Select all / none
   document.getElementById('eaSelectAll').onclick = () => {
-    eaSelectedIds = new Set(visibleIds);
+    eaSelectedIds = new Set(allSelKeys);
     container.querySelectorAll('.ea-select-cb').forEach(cb => { cb.checked = true; });
     const c = document.getElementById('eaSelCount'); if (c) c.textContent = eaSelectedIds.size;
   };
@@ -3580,16 +3616,23 @@ function renderEmpAnalysisView() {
     container.querySelectorAll('.ea-select-cb').forEach(cb => { cb.checked = false; });
     const c = document.getElementById('eaSelCount'); if (c) c.textContent = '0';
   };
-  // Batch PDF
+  // Batch PDF: collect (ym, x) pairs for selected composite keys
   document.getElementById('eaBatchPdf').onclick = () => {
-    const selected = analysis.filter(x => eaSelectedIds.has(x.emp.id));
+    const selected = [];
+    monthAnalyses.forEach(ma => {
+      ma.analysis.forEach(x => {
+        if (eaSelectedIds.has(ma.ym + '|' + x.emp.id)) {
+          selected.push({ x: x, ma: ma });
+        }
+      });
+    });
     if (!selected.length) { showToast('⚠ ยังไม่ได้เลือกพนักงาน', true); return; }
-    saveAnalysisCardsAsCombinedPDF(selected, eaMonth, isTrainer);
+    saveAnalysisCardsAsCombinedPDF(selected, eaMonthFrom, eaMonth, isTrainer);
   };
 }
 
-// ===== Combined PDF for selected analysis cards =====
-async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
+// ===== Combined PDF for selected analysis cards (one page per emp-month) =====
+async function saveAnalysisCardsAsCombinedPDF(selected, monthFromYM, monthToYM, isTrainer) {
   if (!selected.length) return;
   if (typeof html2canvas === 'undefined') { showToast('⚠ โหลด html2canvas ไม่สำเร็จ', true); return; }
   const jspdfNs = window.jspdf || window.jsPDF || null;
@@ -3601,7 +3644,7 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
     if (!d.open) { wasClosed.push(d); d.open = true; }
   });
   try {
-    showToast('⏳ กำลังสร้าง PDF · ' + selected.length + ' คน...');
+    showToast('⏳ กำลังสร้าง PDF · ' + selected.length + ' รายการ...');
     const pdf = new JsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
@@ -3609,8 +3652,10 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
     const usableW = pageW - margin * 2;
     const usableH = pageH - margin * 2;
     for (let i = 0; i < selected.length; i++) {
-      const x = selected[i];
-      const el = document.getElementById('ea-card-' + x.emp.id);
+      const item = selected[i];
+      const x = item.x;
+      const ma = item.ma;
+      const el = document.getElementById('ea-card-' + ma.ym + '-' + x.emp.id);
       if (!el) continue;
       const canvas = await html2canvas(el, {
         backgroundColor: '#ffffff',
@@ -3633,9 +3678,10 @@ async function saveAnalysisCardsAsCombinedPDF(selected, monthYM, isTrainer) {
       }
     }
     const roleLabel = isTrainer ? 'เทรนเนอร์' : 'เซลล์';
-    const filename = 'Station24_วิเคราะห์' + roleLabel + '_' + monthYM + '_' + selected.length + 'คน.pdf';
+    const monthSuffix = monthFromYM === monthToYM ? monthFromYM : (monthFromYM + '_to_' + monthToYM);
+    const filename = 'Station24_วิเคราะห์' + roleLabel + '_' + monthSuffix + '_' + selected.length + 'รายการ.pdf';
     pdf.save(filename);
-    showToast('✓ บันทึก ' + selected.length + ' คน · 1 ไฟล์');
+    showToast('✓ บันทึก ' + selected.length + ' รายการ · 1 ไฟล์');
   } catch(e) {
     console.error('saveAnalysisCardsAsCombinedPDF failed', e);
     showToast('⚠ บันทึก PDF ไม่สำเร็จ', true);
