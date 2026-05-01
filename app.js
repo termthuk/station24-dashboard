@@ -2406,17 +2406,58 @@ async function saveElementAsImage(el, baseName, fmt) {
     showToast('⚠ บันทึกภาพไม่สำเร็จ', true);
   }
 }
+// ===== Generic "save view as PDF" (html2canvas + jsPDF, multi-page A4) =====
+async function saveElementAsPDF(el, baseName) {
+  if (!el) { showToast('⚠ ไม่พบเนื้อหาที่จะบันทึก', true); return; }
+  if (typeof html2canvas === 'undefined') { showToast('⚠ โหลด html2canvas ไม่สำเร็จ', true); return; }
+  const jspdfNs = window.jspdf || window.jsPDF || null;
+  const JsPDFCtor = (jspdfNs && jspdfNs.jsPDF) || (typeof jsPDF !== 'undefined' ? jsPDF : null);
+  if (!JsPDFCtor) { showToast('⚠ โหลด jsPDF ไม่สำเร็จ', true); return; }
+  try {
+    showToast('⏳ กำลังสร้าง PDF...');
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: node => node.classList && node.classList.contains('no-capture')
+    });
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const pdf = new JsPDFCtor({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 6;
+    const usableW = pageW - margin * 2;
+    const imgH = (canvas.height * usableW) / canvas.width;
+    let heightLeft = imgH;
+    let position = margin;
+    pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
+    heightLeft -= (pageH - margin * 2);
+    while (heightLeft > 0) {
+      position = margin - (imgH - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, position, usableW, imgH);
+      heightLeft -= (pageH - margin * 2);
+    }
+    pdf.save(baseName + '_' + todayBKK() + '.pdf');
+    showToast('✓ ดาวน์โหลด ' + baseName + '.pdf');
+  } catch(e) {
+    console.error('saveElementAsPDF failed', e);
+    showToast('⚠ บันทึก PDF ไม่สำเร็จ', true);
+  }
+}
 function viewExportBarHTML(targetId, baseName) {
-  return '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">' +
+  return '<div class="no-capture" style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
     '<button type="button" class="view-save-btn" data-tgt="' + targetId + '" data-name="' + baseName + '" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
     '<button type="button" class="view-save-btn" data-tgt="' + targetId + '" data-name="' + baseName + '" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="' + targetId + '" data-name="' + baseName + '" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
     '</div>';
 }
 function bindViewExportButtons(scope) {
   scope.querySelectorAll('.view-save-btn').forEach(btn => {
     btn.onclick = () => {
       const el = document.getElementById(btn.dataset.tgt);
-      saveElementAsImage(el, btn.dataset.name, btn.dataset.fmt);
+      if (btn.dataset.fmt === 'pdf') saveElementAsPDF(el, btn.dataset.name);
+      else saveElementAsImage(el, btn.dataset.name, btn.dataset.fmt);
     };
   });
 }
@@ -2550,6 +2591,7 @@ function renderYearSalesView() {
     '<button type="button" id="ysRefresh" style="padding:7px 14px;border:1px solid #16A34A;background:#fff;color:#16A34A;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🔄 ดึงข้อมูลจากพนักงานใหม่</button>' +
     '<button type="button" class="view-save-btn" data-tgt="yearSalesContainer" data-name="Station24_ยอดขายสะสม" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
     '<button type="button" class="view-save-btn" data-tgt="yearSalesContainer" data-name="Station24_ยอดขายสะสม" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearSalesContainer" data-name="Station24_ยอดขายสะสม" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
     '</div>' +
     yearFilterBarHTML('ys', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
@@ -2691,6 +2733,7 @@ function renderYearTrainView() {
     '<button type="button" id="ytRefresh" style="padding:7px 14px;border:1px solid #16A34A;background:#fff;color:#16A34A;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🔄 ดึงข้อมูลจากพนักงานใหม่</button>' +
     '<button type="button" class="view-save-btn" data-tgt="yearTrainContainer" data-name="Station24_ยอดเทรนสะสม" data-fmt="png" style="padding:7px 14px;border:1px solid var(--red);background:#fff;color:var(--red-dark);border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">🖼 บันทึก .PNG</button>' +
     '<button type="button" class="view-save-btn" data-tgt="yearTrainContainer" data-name="Station24_ยอดเทรนสะสม" data-fmt="jpg" style="padding:7px 14px;border:1px solid var(--red);background:var(--red);color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📷 บันทึก .JPG</button>' +
+    '<button type="button" class="view-save-btn" data-tgt="yearTrainContainer" data-name="Station24_ยอดเทรนสะสม" data-fmt="pdf" style="padding:7px 14px;border:1px solid #1F2937;background:#1F2937;color:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700">📄 บันทึก .PDF</button>' +
     '</div>' +
     yearFilterBarHTML('yt', r) +
     '<div class="kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px">' +
