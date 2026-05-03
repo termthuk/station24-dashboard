@@ -3997,7 +3997,7 @@ function saveBranchChart(branchId, fmt, silent) {
 
   let totA = 0, totB = 0;
   br.employees.forEach(e => {
-    const t = empDailyTotals(branchId, e.id);
+    const t = empTotalsInRange(branchId, e.id, scRange);
     const sub = t.pt + t.member;
     if ((e.team || 'A') === 'A') totA += sub; else totB += sub;
   });
@@ -4062,7 +4062,7 @@ function saveThreeBranchChart(fmt, silent) {
   const totals = THREE_BRANCH_TEAMS.map(t => {
     const br = getBranch(t.id);
     let sum = 0;
-    if (br) br.employees.forEach(e => { const d = empDailyTotals(t.id, e.id); sum += d.pt + d.member; });
+    if (br) br.employees.forEach(e => { const d = empTotalsInRange(t.id, e.id, scRange); sum += d.pt + d.member; });
     return { team: t, sum: sum };
   });
 
